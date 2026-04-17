@@ -101,6 +101,9 @@ vmt config                        # show current config
 vmt config set <key> <value>      # update config value
 vmt tui                           # launch TUI mode
 vmt alfred                        # output Alfred Script Filter JSON
+vmt watch                         # watch for new recordings and auto-transcribe
+vmt watch --install               # register as launchd agent (auto-start on login)
+vmt watch --uninstall             # unregister launchd agent
 ```
 
 ### `vmt list`
@@ -146,6 +149,51 @@ vmt alfred                        # output Alfred Script Filter JSON
 - Items: recordings with title, subtitle (date + duration), icon (checkmark if transcribed)
 - `arg`: recording filename (passed to `vmt transcribe --yes <file>`)
 - Mod keys: Cmd → preview
+
+### `vmt watch`
+
+Watches the Voice Memos recordings directory for new `.m4a` files and auto-transcribes them.
+
+**Foreground mode** (`vmt watch`):
+
+- Uses `fsnotify` to watch `~/Library/Group Containers/group.com.apple.VoiceMemos.shared/Recordings/`
+- On new `.m4a` file detected, waits 2 seconds (debounce — Voice Memos writes incrementally), then runs transcription
+- Outputs status to stdout: `[2026-04-17 12:34] Transcribing: Meeting Notes...`
+- Sends macOS notification on completion via `osascript`
+- Ctrl+C for graceful shutdown
+
+**launchd integration** (`vmt watch --install`):
+
+- Generates and installs a launchd plist at `~/Library/LaunchAgents/com.matsubo.vmt.watch.plist`
+- Runs `vmt watch` as a background agent, auto-starts on login
+- Logs to `~/Library/Logs/vmt/watch.log`
+- `vmt watch --uninstall` removes the plist and stops the agent
+
+**Generated plist:**
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.matsubo.vmt.watch</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/vmt</string>
+        <string>watch</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>~/Library/Logs/vmt/watch.log</string>
+    <key>StandardErrorPath</key>
+    <string>~/Library/Logs/vmt/watch.log</string>
+</dict>
+</plist>
+```
 
 ### `vmt tui`
 
@@ -310,6 +358,11 @@ internal/
   alfred/
     scriptfilter.go             — Alfred Script Filter JSON builder
     scriptfilter_test.go
+  watcher/
+    watcher.go                  — fsnotify directory watcher + debounce
+    watcher_test.go
+    launchd.go                  — plist generation and install/uninstall
+    launchd_test.go
   cli/
     root.go                     — cobra root command
     list.go
@@ -318,6 +371,7 @@ internal/
     config.go
     tui.go
     alfred.go
+    watch.go
 alfred-workflow/
   info.plist                    — Alfred Workflow definition
   icons/
@@ -342,6 +396,7 @@ SECURITY.md
 | `github.com/charmbracelet/lipgloss` | TUI styling |
 | `github.com/charmbracelet/bubbles` | TUI components (spinner, table, etc.) |
 | `modernc.org/sqlite` | SQLite (pure Go, no CGo) |
+| `github.com/fsnotify/fsnotify` | File system watcher (for `vmt watch`) |
 | `encoding/xml` (stdlib) | XML output |
 | `encoding/json` (stdlib) | JSON output/config |
 | `encoding/csv` (stdlib) | CSV output |

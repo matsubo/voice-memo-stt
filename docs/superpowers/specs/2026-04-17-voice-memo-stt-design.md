@@ -2,7 +2,6 @@
 
 ## Overview
 
-A Go CLI tool (`vmt`) that transcribes macOS Voice Memos recordings using pluggable STT engines. Supports CLI, TUI, and Alfred Workflow interfaces. Initial release ships with ElevenLabs Scribe; the STT engine interface allows adding more providers later.
 
 ## Repository
 

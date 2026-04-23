@@ -8,7 +8,7 @@
 [![Release](https://img.shields.io/github/v/release/matsubo/voice-memo-stt?include_prereleases&sort=semver)](https://github.com/matsubo/voice-memo-stt/releases)
 [![Platform: macOS](https://img.shields.io/badge/platform-macOS-lightgrey)](https://www.apple.com/macos/)
 
-Transcribe macOS Voice Memos recordings via ElevenLabs Scribe. Single Go binary with CLI, TUI, Alfred workflow, and file-watch auto-transcription.
+Transcribe macOS Voice Memos recordings via ElevenLabs Scribe. Single Go binary with CLI, TUI, Alfred/Raycast integration, and file-watch auto-transcription.
 
 ## Preview
 
@@ -69,7 +69,8 @@ Team standup          2026-04-05 10:00  30m34s    20260405_100000.m4a
 - **Multi-format output** — txt, md, json, csv, xml generated from a single API call
 - **Speaker diarization** (via ElevenLabs `diarize`)
 - **Interactive TUI** (bubbletea) — list, transcribe, preview, settings, clipboard copy
-- **Alfred Script Filter** integration
+- **Alfred Script Filter** — see [alfred-workflow/](alfred-workflow/)
+- **Raycast Script Commands** — see [raycast/](raycast/)
 - **File watcher** — auto-transcribe new recordings (foreground or launchd agent)
 - **Cost estimation** before transcription
 
@@ -204,6 +205,18 @@ The `alfred-workflow/` directory has a skeleton `info.plist`. Suggested wiring i
 - Cmd modifier: `/usr/local/bin/vmt preview {query}`
 
 Transcribed recordings show a `✓` icon; pending ones show a dash.
+
+## Raycast
+
+The [`raycast/`](raycast/) directory contains 5 Raycast Script Commands:
+
+- **Transcribe All Pending** — batch transcribe untranscribed recordings
+- **Copy Latest Transcription** — `.txt` → clipboard
+- **List Voice Memos Recordings** — show recordings with `✓` marks
+- **Open Voice Memos TUI** — launch `vmt tui` in Terminal.app
+- **Toggle Watch Agent** — install/uninstall launchd watch agent
+
+Setup: Raycast → Settings → Extensions → Script Commands → **Add Directory** → point to `raycast/`. See [raycast/README.md](raycast/README.md) for details.
 
 ## Data source
 

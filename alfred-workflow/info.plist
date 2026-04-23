@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>bundleid</key>
+    <string>com.matsubo.voice-memo-stt</string>
+    <key>name</key>
+    <string>Voice Memo STT</string>
+    <key>version</key>
+    <string>1.0.0</string>
+    <key>description</key>
+    <string>Transcribe Voice Memos recordings via vmt</string>
+    <key>createdby</key>
+    <string>matsubo</string>
+    <key>readme</key>
+    <string>Requires vmt installed at /usr/local/bin/vmt (brew install matsubo/tap/vmt).
+
+Keyword: vm
+Selection: runs `vmt transcribe --yes &lt;file&gt;` and shows a notification on completion.
+Cmd+Enter: runs `vmt preview &lt;file&gt;`.</string>
+</dict>
+</plist>

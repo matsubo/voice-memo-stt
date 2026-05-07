@@ -76,11 +76,13 @@ Team standup          2026-04-05 10:00  30m34s    20260405_100000.m4a
 
 ## Install
 
-### Homebrew (planned)
+### Homebrew
 
 ```bash
 brew install matsubo/tap/vmt
 ```
+
+Updates: `brew upgrade vmt`. The tap lives at [matsubo/homebrew-tap](https://github.com/matsubo/homebrew-tap) and is published automatically by [goreleaser](https://goreleaser.com/) on every `v*` tag.
 
 ### From source
 

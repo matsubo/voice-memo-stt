@@ -38,6 +38,8 @@ type model struct {
 	selected    voicememos.Recording // the recording chosen from the list
 	statusMsg   string               // transient status shown in list header
 	statusIsErr bool
+	width       int // last known terminal size
+	height      int
 }
 
 // Run starts the bubbletea TUI program with alt-screen.
@@ -103,6 +105,12 @@ func (*missingKeyError) Error() string {
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	// Remember the terminal size even while another screen is active, so a screen
+	// created later (preview) can lay itself out without waiting for a resize.
+	if size, ok := msg.(tea.WindowSizeMsg); ok {
+		m.width, m.height = size.Width, size.Height
+	}
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		// Quit confirm: 'y' exits, 'n'/'esc' returns to previous screen.
@@ -158,7 +166,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if rec, ok := m.list.selected(); ok {
 				stem = strings.TrimSuffix(rec.Path, filepath.Ext(rec.Path))
 			}
-			m.preview = newPreviewModel(stem, m.cfg.OutputDir, m.cfg.OutputFormats)
+			m.preview = newPreviewModel(stem, m.cfg.OutputDir, m.cfg.OutputFormats, m.width, m.height)
 			m.screen = screenPreview
 			return m, nil
 		case screenSettings:

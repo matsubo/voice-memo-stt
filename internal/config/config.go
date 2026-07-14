@@ -23,7 +23,21 @@ type Config struct {
 	OutputDir     string        `json:"output_dir"`
 	LanguageCode  string        `json:"language_code"`
 	Diarize       bool          `json:"diarize"`
+	Editor        string        `json:"editor"`
 	Engines       EnginesConfig `json:"engines"`
+}
+
+// ResolveEditor returns the command that opens a transcription for editing,
+// preferring the configured editor, then $VISUAL, then $EDITOR, then vi. The
+// value may carry flags ("code -w"), so it comes back split into command and
+// arguments.
+func (c Config) ResolveEditor() []string {
+	for _, candidate := range []string{c.Editor, os.Getenv("VISUAL"), os.Getenv("EDITOR")} {
+		if fields := strings.Fields(candidate); len(fields) > 0 {
+			return fields
+		}
+	}
+	return []string{"vi"}
 }
 
 func DefaultPath() string {
@@ -92,6 +106,9 @@ func applyEnvOverrides(cfg Config) Config {
 	}
 	if v := os.Getenv("VMT_LANGUAGE"); v != "" {
 		cfg.LanguageCode = v
+	}
+	if v := os.Getenv("VMT_EDITOR"); v != "" {
+		cfg.Editor = v
 	}
 	return cfg
 }

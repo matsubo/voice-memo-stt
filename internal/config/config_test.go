@@ -129,3 +129,61 @@ func TestLoadCorruptJSON(t *testing.T) {
 		t.Error("expected error for corrupt JSON, got nil")
 	}
 }
+
+func TestResolveEditor_ConfigWins(t *testing.T) {
+	t.Setenv("VISUAL", "emacs")
+	t.Setenv("EDITOR", "nano")
+
+	cfg := config.Config{Editor: "nvim"}
+	got := cfg.ResolveEditor()
+	if len(got) != 1 || got[0] != "nvim" {
+		t.Errorf("ResolveEditor: got %v, want [nvim] — config must win over the environment", got)
+	}
+}
+
+func TestResolveEditor_FallsBackToVisualThenEditor(t *testing.T) {
+	t.Setenv("VISUAL", "emacs")
+	t.Setenv("EDITOR", "nano")
+
+	cfg := config.Config{}
+	if got := cfg.ResolveEditor(); len(got) != 1 || got[0] != "emacs" {
+		t.Errorf("ResolveEditor: got %v, want [emacs] ($VISUAL outranks $EDITOR)", got)
+	}
+
+	t.Setenv("VISUAL", "")
+	if got := cfg.ResolveEditor(); len(got) != 1 || got[0] != "nano" {
+		t.Errorf("ResolveEditor: got %v, want [nano] ($EDITOR)", got)
+	}
+}
+
+func TestResolveEditor_DefaultsToVi(t *testing.T) {
+	t.Setenv("VISUAL", "")
+	t.Setenv("EDITOR", "")
+
+	if got := (config.Config{}).ResolveEditor(); len(got) != 1 || got[0] != "vi" {
+		t.Errorf("ResolveEditor: got %v, want [vi]", got)
+	}
+}
+
+func TestResolveEditor_KeepsFlags(t *testing.T) {
+	t.Setenv("VISUAL", "")
+	t.Setenv("EDITOR", "")
+
+	cfg := config.Config{Editor: "code -w"}
+	got := cfg.ResolveEditor()
+	if len(got) != 2 || got[0] != "code" || got[1] != "-w" {
+		t.Errorf("ResolveEditor: got %v, want [code -w] — an editor may need flags to block", got)
+	}
+}
+
+func TestEnvOverrideEditor(t *testing.T) {
+	t.Setenv("VMT_EDITOR", "hx")
+
+	cfg, err := config.Load(filepath.Join(t.TempDir(), "missing.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Editor != "hx" {
+		t.Errorf("Editor: got %q, want %q from VMT_EDITOR", cfg.Editor, "hx")
+	}
+}

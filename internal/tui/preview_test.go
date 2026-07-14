@@ -1,11 +1,15 @@
 package tui
 
 import (
+	"errors"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/matsubo/voice-memo-stt/internal/config"
 )
 
 func TestCopyToClipboard(t *testing.T) {
@@ -50,7 +54,7 @@ func TestPreviewView_FooterVisibleWithLongContent(t *testing.T) {
 	}
 
 	last := lines[len(lines)-1]
-	if !strings.Contains(last, "←/→ switch format • c copy • esc back") {
+	if !strings.Contains(last, "←/→ switch format • c copy • e edit • esc back") {
 		t.Errorf("footer must be pinned to the last line, got %q", last)
 	}
 	if !strings.Contains(last, "[txt]") {
@@ -65,7 +69,7 @@ func TestPreviewView_ShowsContent(t *testing.T) {
 	}
 }
 
-func TestPreviewUpdate_CopyFlashesAndSetsStatus(t *testing.T) {
+func TestPreviewUpdate_CopyFlashesAndSetsNotice(t *testing.T) {
 	if _, err := exec.LookPath("pbcopy"); err != nil {
 		t.Skip("pbcopy not available")
 	}
@@ -77,8 +81,8 @@ func TestPreviewUpdate_CopyFlashesAndSetsStatus(t *testing.T) {
 	if !got.flashing {
 		t.Error("copy should start a screen flash")
 	}
-	if got.copyStatus != "copied!" {
-		t.Errorf("copyStatus: got %q, want %q", got.copyStatus, "copied!")
+	if got.notice != "copied!" {
+		t.Errorf("notice: got %q, want %q", got.notice, "copied!")
 	}
 	if cmd == nil {
 		t.Fatal("copy should return a command that ends the flash")
@@ -115,11 +119,11 @@ func TestPreviewUpdate_FlashOffClearsFlash(t *testing.T) {
 
 func TestPreviewUpdate_CopyStatusExpires(t *testing.T) {
 	m := newTestPreview(t, "hello", []string{"txt"}, 80, 24)
-	m.copyStatus = "copied!"
+	m.notice = "copied!"
 
-	updated, _ := m.Update(copyStatusExpiredMsg{})
-	if got := updated.(previewModel).copyStatus; got != "" {
-		t.Errorf("copyStatusExpiredMsg should clear the status, got %q", got)
+	updated, _ := m.Update(noticeExpiredMsg{})
+	if got := updated.(previewModel).notice; got != "" {
+		t.Errorf("noticeExpiredMsg should clear the status, got %q", got)
 	}
 }
 
@@ -139,4 +143,113 @@ func TestPreviewUpdate_NoFormatsDoesNotPanic(t *testing.T) {
 	// left/right used to divide by zero when no formats were configured.
 	m.Update(tea.KeyMsg{Type: tea.KeyRight})
 	m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+}
+
+func TestEditorCommand_PassesFlagsThenPath(t *testing.T) {
+	cmd := editorCommand([]string{"nvim"}, "/tmp/a.txt")
+	if got := cmd.Args; len(got) != 2 || got[0] != "nvim" || got[1] != "/tmp/a.txt" {
+		t.Errorf("args: got %v, want [nvim /tmp/a.txt]", got)
+	}
+
+	cmd = editorCommand([]string{"code", "-w"}, "/tmp/a.txt")
+	if got := cmd.Args; len(got) != 3 || got[1] != "-w" || got[2] != "/tmp/a.txt" {
+		t.Errorf("args: got %v, want [code -w /tmp/a.txt] — the path must come after the flags", got)
+	}
+}
+
+func TestPreviewCurrentPath_TracksDisplayedFormat(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "rec.txt", "plain")
+	writeFile(t, dir, "rec.md", "# markdown")
+
+	m := previewModel{stem: "rec", outputDir: dir, formats: []string{"txt", "md"}}
+
+	path, ok := m.currentPath()
+	if !ok || filepath.Base(path) != "rec.txt" {
+		t.Errorf("currentPath: got %q (ok=%v), want rec.txt", path, ok)
+	}
+
+	m.formatIdx = 1
+	path, ok = m.currentPath()
+	if !ok || filepath.Base(path) != "rec.md" {
+		t.Errorf("currentPath after switching format: got %q (ok=%v), want rec.md", path, ok)
+	}
+}
+
+func TestPreviewCurrentPath_MissingTranscription(t *testing.T) {
+	m := previewModel{stem: "rec", outputDir: t.TempDir(), formats: []string{"txt"}}
+	if _, ok := m.currentPath(); ok {
+		t.Error("currentPath must report false when the transcription does not exist")
+	}
+}
+
+func TestPreviewUpdate_EditWithoutTranscriptionShowsNotice(t *testing.T) {
+	m := previewModel{stem: "rec", outputDir: t.TempDir(), formats: []string{"txt"}, editor: []string{"nvim"}}
+	m.setSize(80, 24)
+
+	updated, _ := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
+	got := updated.(previewModel)
+
+	if got.notice == "" {
+		t.Error("pressing e with nothing to edit should explain why, not open an empty buffer")
+	}
+	if !strings.Contains(got.View(), got.notice) {
+		t.Error("the notice should be visible in the footer")
+	}
+}
+
+func TestPreviewUpdate_EditOpensEditor(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "rec.txt", "before")
+
+	m := previewModel{stem: "rec", outputDir: dir, formats: []string{"txt"}, editor: []string{"nvim"}}
+	m.setSize(80, 24)
+
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'e'}})
+	if cmd == nil {
+		t.Fatal("pressing e should hand the terminal to the editor")
+	}
+	if got := updated.(previewModel).notice; got != "" {
+		t.Errorf("no notice expected when the editor actually opens, got %q", got)
+	}
+}
+
+func TestPreviewAfterEdit_ReloadsFromDisk(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "rec.txt", "before")
+
+	m := newPreviewModel(config.Config{OutputDir: dir, OutputFormats: []string{"txt"}}, "rec", 80, 24)
+	if !strings.Contains(m.View(), "before") {
+		t.Fatal("preview should start with the original content")
+	}
+
+	// The editor saved new content behind our back.
+	writeFile(t, dir, "rec.txt", "after editing")
+
+	got, cmd := m.afterEdit(nil)
+	if !strings.Contains(got.View(), "after editing") {
+		t.Error("returning from the editor must re-read the file, not show a stale buffer")
+	}
+	if cmd == nil {
+		t.Error("expected a command to expire the notice")
+	}
+}
+
+func TestPreviewAfterEdit_ReportsEditorFailure(t *testing.T) {
+	dir := t.TempDir()
+	writeFile(t, dir, "rec.txt", "text")
+
+	m := newPreviewModel(config.Config{OutputDir: dir, OutputFormats: []string{"txt"}}, "rec", 80, 24)
+
+	got, _ := m.afterEdit(errors.New("exit status 1"))
+	if !strings.Contains(got.notice, "exit status 1") {
+		t.Errorf("notice: got %q, want it to surface the editor failure", got.notice)
+	}
+}
+
+func writeFile(t *testing.T, dir, name, content string) {
+	t.Helper()
+	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
 }

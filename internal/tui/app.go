@@ -225,7 +225,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if rec, ok := m.list.selected(); ok {
 				stem = strings.TrimSuffix(rec.Path, filepath.Ext(rec.Path))
 			}
-			m.preview = newPreviewModel(stem, m.cfg.OutputDir, m.cfg.OutputFormats, m.width, m.height)
+			m.preview = newPreviewModel(m.cfg, stem, m.width, m.height)
 			m.screen = screenPreview
 			return m, nil
 		case screenSettings:
@@ -240,6 +240,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case backMsg:
 		m.screen = screenList
 		return m, nil
+
+	case editorFinishedMsg:
+		// The edit may have changed the transcription's length, so the list's
+		// char count has to be recomputed alongside the preview's buffer.
+		updated, cmd := m.preview.afterEdit(msg.err)
+		m.preview = updated
+		m = m.rebuildList()
+		return m, cmd
 
 	case transcribeDoneMsg:
 		m.running = withJob(m.running, msg.path, false)

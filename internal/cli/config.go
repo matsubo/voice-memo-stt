@@ -49,6 +49,8 @@ var configSetCmd = &cobra.Command{
 			cfg.LanguageCode = value
 		case "diarize":
 			cfg.Diarize = value == "true"
+		case "editor":
+			cfg.Editor = value
 		case "engines.elevenlabs.api_key":
 			cfg.Engines.ElevenLabs.APIKey = value
 		case "engines.elevenlabs.model":

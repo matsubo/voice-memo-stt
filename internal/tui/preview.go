@@ -22,8 +22,8 @@ const (
 )
 
 const (
-	flashDuration      = 120 * time.Millisecond
-	copyStatusDuration = 2 * time.Second
+	flashDuration  = 120 * time.Millisecond
+	noticeDuration = 2 * time.Second
 
 	// Blank separator line plus the footer line.
 	footerHeight = 2
@@ -34,23 +34,34 @@ const (
 
 type flashOffMsg struct{}
 
-type copyStatusExpiredMsg struct{}
+type noticeExpiredMsg struct{}
 
-type previewModel struct {
-	content    string
-	formatIdx  int
-	formats    []string
-	outputDir  string
-	stem       string
-	copyStatus string // "copied!" / error message
-	flashing   bool
-	viewport   viewport.Model
-	width      int
-	height     int
+// editorFinishedMsg arrives once the external editor has released the terminal.
+type editorFinishedMsg struct {
+	err error
 }
 
-func newPreviewModel(stem, outputDir string, formats []string, width, height int) previewModel {
-	m := previewModel{stem: stem, outputDir: outputDir, formats: formats}
+type previewModel struct {
+	content   string
+	formatIdx int
+	formats   []string
+	outputDir string
+	stem      string
+	editor    []string // command + flags that open a transcription
+	notice    string   // transient footer message ("copied!", errors)
+	flashing  bool
+	viewport  viewport.Model
+	width     int
+	height    int
+}
+
+func newPreviewModel(cfg config.Config, stem string, width, height int) previewModel {
+	m := previewModel{
+		stem:      stem,
+		outputDir: cfg.OutputDir,
+		formats:   cfg.OutputFormats,
+		editor:    cfg.ResolveEditor(),
+	}
 	m.loadContent()
 	m.setSize(width, height)
 	return m
@@ -73,6 +84,23 @@ func (m *previewModel) setSize(width, height int) {
 	}
 	m.viewport = viewport.New(width, viewportHeight)
 	m.viewport.SetContent(m.content)
+}
+
+// currentPath is the file backing the format on screen. The second return is
+// false when nothing has been transcribed for it yet.
+func (m previewModel) currentPath() (string, bool) {
+	if len(m.formats) == 0 {
+		return "", false
+	}
+	idx := m.formatIdx
+	if idx >= len(m.formats) {
+		idx = 0
+	}
+	path := filepath.Join(config.ExpandPath(m.outputDir), m.stem+"."+m.formats[idx])
+	if _, err := os.Stat(path); err != nil {
+		return "", false
+	}
+	return path, true
 }
 
 func (m *previewModel) loadContent() {
@@ -103,6 +131,19 @@ func (m *previewModel) switchFormat(delta int) {
 	m.viewport.GotoTop()
 }
 
+// afterEdit re-reads the file the editor just had, so an edit that was saved
+// outside the TUI is not masked by a stale buffer.
+func (m previewModel) afterEdit(err error) (previewModel, tea.Cmd) {
+	if err != nil {
+		m.notice = fmt.Sprintf("editor failed: %v", err)
+	} else {
+		m.notice = "reloaded"
+	}
+	m.loadContent()
+	m.viewport.SetContent(m.content)
+	return m, noticeExpiredCmd()
+}
+
 // copyToClipboard pipes s into pbcopy. macOS only.
 func copyToClipboard(s string) error {
 	cmd := exec.Command("pbcopy")
@@ -110,12 +151,26 @@ func copyToClipboard(s string) error {
 	return cmd.Run()
 }
 
+// editorCommand builds the editor invocation: its own flags first, then the file.
+func editorCommand(editor []string, path string) *exec.Cmd {
+	args := append(append([]string{}, editor[1:]...), path)
+	return exec.Command(editor[0], args...)
+}
+
+// openEditorCmd suspends the TUI and hands the terminal to the editor, restoring
+// the TUI once it exits.
+func openEditorCmd(editor []string, path string) tea.Cmd {
+	return tea.ExecProcess(editorCommand(editor, path), func(err error) tea.Msg {
+		return editorFinishedMsg{err: err}
+	})
+}
+
 func flashOffCmd() tea.Cmd {
 	return tea.Tick(flashDuration, func(time.Time) tea.Msg { return flashOffMsg{} })
 }
 
-func copyStatusExpiredCmd() tea.Cmd {
-	return tea.Tick(copyStatusDuration, func(time.Time) tea.Msg { return copyStatusExpiredMsg{} })
+func noticeExpiredCmd() tea.Cmd {
+	return tea.Tick(noticeDuration, func(time.Time) tea.Msg { return noticeExpiredMsg{} })
 }
 
 func (m previewModel) Init() tea.Cmd { return nil }
@@ -130,8 +185,8 @@ func (m previewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.flashing = false
 		return m, nil
 
-	case copyStatusExpiredMsg:
-		m.copyStatus = ""
+	case noticeExpiredMsg:
+		m.notice = ""
 		return m, nil
 
 	case tea.KeyMsg:
@@ -144,12 +199,23 @@ func (m previewModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case "c":
 			if err := copyToClipboard(m.content); err != nil {
-				m.copyStatus = fmt.Sprintf("copy failed: %v", err)
-				return m, copyStatusExpiredCmd()
+				m.notice = fmt.Sprintf("copy failed: %v", err)
+				return m, noticeExpiredCmd()
 			}
-			m.copyStatus = "copied!"
+			m.notice = "copied!"
 			m.flashing = true
-			return m, tea.Batch(flashOffCmd(), copyStatusExpiredCmd())
+			return m, tea.Batch(flashOffCmd(), noticeExpiredCmd())
+		case "e":
+			path, ok := m.currentPath()
+			if !ok {
+				m.notice = "nothing to edit — transcribe this recording first"
+				return m, noticeExpiredCmd()
+			}
+			if len(m.editor) == 0 {
+				m.notice = "no editor configured"
+				return m, noticeExpiredCmd()
+			}
+			return m, openEditorCmd(m.editor, path)
 		case "esc":
 			return m, func() tea.Msg { return backMsg{} }
 		}
@@ -165,9 +231,9 @@ func (m previewModel) footer() string {
 	if len(m.formats) > 0 {
 		format = m.formats[m.formatIdx]
 	}
-	footer := fmt.Sprintf("[%s] ←/→ switch format • c copy • esc back", format)
-	if m.copyStatus != "" {
-		footer = m.copyStatus + " • " + footer
+	footer := fmt.Sprintf("[%s] ←/→ switch format • c copy • e edit • esc back", format)
+	if m.notice != "" {
+		footer = m.notice + " • " + footer
 	}
 	return footer
 }

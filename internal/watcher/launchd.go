@@ -77,4 +77,3 @@ func RemovePlist(plistPath string) error {
 	}
 	return nil
 }
-

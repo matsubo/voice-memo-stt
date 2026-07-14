@@ -29,6 +29,7 @@ func newSettingsModel(cfg config.Config) settingsModel {
 			{"Language", func(c config.Config) string { return c.LanguageCode }},
 			{"Diarize", func(c config.Config) string { return fmt.Sprintf("%v", c.Diarize) }},
 			{"Output Dir", func(c config.Config) string { return c.OutputDir }},
+			{"Editor", func(c config.Config) string { return strings.Join(c.ResolveEditor(), " ") }},
 		},
 	}
 }

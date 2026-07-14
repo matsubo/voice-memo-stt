@@ -2,9 +2,11 @@ package tui
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"strings"
 
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/matsubo/voice-memo-stt/internal/config"
 	"github.com/matsubo/voice-memo-stt/internal/engine"
@@ -18,7 +20,6 @@ type screen int
 const (
 	screenList screen = iota
 	screenConfirm
-	screenProgress
 	screenPreview
 	screenSettings
 	screenQuitConfirm
@@ -30,12 +31,13 @@ type model struct {
 	prevScreen  screen // screen active before quit confirm was shown
 	list        listModel
 	confirm     confirmModel
-	progress    progressModel
 	preview     previewModel
 	settings    settingsModel
 	recordings  []voicememos.Recording
 	loadError   error
 	selected    voicememos.Recording // the recording chosen from the list
+	running     map[string]bool      // recording path -> transcription in flight
+	failed      map[string]bool      // recording path -> last transcription failed
 	statusMsg   string               // transient status shown in list header
 	statusIsErr bool
 	width       int // last known terminal size
@@ -68,8 +70,10 @@ func loadRecordingsCmd() tea.Cmd {
 
 func transcribeCmd(cfg config.Config, rec voicememos.Recording) tea.Cmd {
 	return func() tea.Msg {
+		done := transcribeDoneMsg{path: rec.Path, title: rec.Title}
 		if cfg.Engines.ElevenLabs.APIKey == "" {
-			return transcribeDoneMsg{err: errMissingKey}
+			done.err = errMissingKey
+			return done
 		}
 		eng := elevenlabs.New(cfg.Engines.ElevenLabs.APIKey, cfg.Engines.ElevenLabs.Model)
 		audioPath := filepath.Join(voicememos.AudioDir(), rec.Path)
@@ -78,7 +82,8 @@ func transcribeCmd(cfg config.Config, rec voicememos.Recording) tea.Cmd {
 			Diarize:      cfg.Diarize,
 		})
 		if err != nil {
-			return transcribeDoneMsg{err: err}
+			done.err = err
+			return done
 		}
 		outDir := config.ExpandPath(cfg.OutputDir)
 		fmtCtx := formatter.Context{
@@ -90,9 +95,9 @@ func transcribeCmd(cfg config.Config, rec voicememos.Recording) tea.Cmd {
 			Segments:   result.Segments,
 		}
 		if err := formatter.Write(outDir, fmtCtx, cfg.OutputFormats); err != nil {
-			return transcribeDoneMsg{err: err}
+			done.err = err
 		}
-		return transcribeDoneMsg{}
+		return done
 	}
 }
 
@@ -104,11 +109,43 @@ func (*missingKeyError) Error() string {
 	return "ElevenLabs API key not set — run: vmt config set engines.elevenlabs.api_key sk-..."
 }
 
+// withJob returns a copy of set with key added or removed, so a previous model
+// value never sees a job flip underneath it.
+func withJob(set map[string]bool, key string, member bool) map[string]bool {
+	next := make(map[string]bool, len(set)+1)
+	for k := range set {
+		next[k] = true
+	}
+	if member {
+		next[key] = true
+	} else {
+		delete(next, key)
+	}
+	return next
+}
+
+// rebuildList re-reads transcription output from disk (marks, char counts) while
+// preserving the cursor and current job state.
+func (m model) rebuildList() model {
+	cursor := m.list.table.Cursor()
+	m.list = newListModel(m.recordings, m.cfg.OutputDir, m.cfg.OutputFormats).withJobs(m.running, m.failed)
+	m.list.table.SetCursor(cursor)
+	return m
+}
+
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	// Remember the terminal size even while another screen is active, so a screen
 	// created later (preview) can lay itself out without waiting for a resize.
 	if size, ok := msg.(tea.WindowSizeMsg); ok {
 		m.width, m.height = size.Width, size.Height
+	}
+
+	// The running-job spinner must keep animating on whichever screen the user
+	// wandered off to, so its ticks bypass the per-screen dispatch below.
+	if _, ok := msg.(spinner.TickMsg); ok {
+		updated, cmd := m.list.Update(msg)
+		m.list = updated.(listModel)
+		return m, cmd
 	}
 
 	switch msg := msg.(type) {
@@ -130,11 +167,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.screen = screenQuitConfirm
 			return m, nil
 		}
+
 	case recordingsLoadedMsg:
 		m.loadError = msg.err
 		if msg.err == nil {
 			m.recordings = msg.recordings
-			m.list = newListModel(m.recordings, m.cfg.OutputDir, m.cfg.OutputFormats)
+			m.list = newListModel(m.recordings, m.cfg.OutputDir, m.cfg.OutputFormats).withJobs(m.running, m.failed)
 		}
 		m.screen = screenList
 		return m, nil
@@ -146,6 +184,12 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.screen = screenList
 			return m, nil
 		}
+		if m.running[msg.recording.Path] {
+			m.statusMsg = "Already transcribing: " + msg.recording.Title
+			m.statusIsErr = false
+			m.screen = screenList
+			return m, nil
+		}
 		m.selected = msg.recording
 		eng := elevenlabs.New(m.cfg.Engines.ElevenLabs.APIKey, m.cfg.Engines.ElevenLabs.Model)
 		cost := eng.EstimateCost(msg.recording.Duration)
@@ -153,14 +197,29 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.screen = screenConfirm
 		return m, nil
 
+	case startJobMsg:
+		// Hand the transcription to a background command and go straight back to
+		// the list, so the user can keep browsing and queue more work.
+		rec := msg.recording
+		wasIdle := len(m.running) == 0
+		m.running = withJob(m.running, rec.Path, true)
+		m.failed = withJob(m.failed, rec.Path, false)
+		m.statusMsg = "Transcribing in background: " + rec.Title
+		m.statusIsErr = false
+		m.screen = screenList
+		m = m.rebuildList()
+
+		cmds := []tea.Cmd{transcribeCmd(m.cfg, rec)}
+		if wasIdle {
+			// Only one animation loop, no matter how many jobs are queued.
+			cmds = append(cmds, m.list.spinnerTick())
+		}
+		return m, tea.Batch(cmds...)
+
 	case navigateMsg:
 		m.statusMsg = "" // clear stale status on any screen change
 		m.statusIsErr = false
 		switch msg.to {
-		case screenProgress:
-			m.progress = newProgressModel(m.selected.Title)
-			m.screen = screenProgress
-			return m, tea.Batch(m.progress.Init(), transcribeCmd(m.cfg, m.selected))
 		case screenPreview:
 			stem := strings.TrimSuffix(m.selected.Path, filepath.Ext(m.selected.Path))
 			if rec, ok := m.list.selected(); ok {
@@ -183,16 +242,17 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case transcribeDoneMsg:
-		m.screen = screenList
+		m.running = withJob(m.running, msg.path, false)
+		m.failed = withJob(m.failed, msg.path, msg.err != nil)
 		if msg.err != nil {
-			m.statusMsg = "Error: " + msg.err.Error()
+			m.statusMsg = "Error: " + msg.title + ": " + msg.err.Error()
 			m.statusIsErr = true
 		} else {
-			m.statusMsg = "Transcription complete: " + m.selected.Title
+			m.statusMsg = "Transcription complete: " + msg.title
 			m.statusIsErr = false
-			// Rebuild list so the new ✓ mark appears
-			m.list = newListModel(m.recordings, m.cfg.OutputDir, m.cfg.OutputFormats)
 		}
+		// Re-read the outputs so the ✓ mark and char count appear.
+		m = m.rebuildList()
 		return m, nil
 	}
 
@@ -205,10 +265,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		updated, cmd := m.confirm.Update(msg)
 		m.confirm = updated.(confirmModel)
 		return m, cmd
-	case screenProgress:
-		updated, cmd := m.progress.Update(msg)
-		m.progress = updated.(progressModel)
-		return m, cmd
 	case screenPreview:
 		updated, cmd := m.preview.Update(msg)
 		m.preview = updated.(previewModel)
@@ -219,6 +275,19 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, cmd
 	}
 	return m, nil
+}
+
+// quitConfirmView warns about work that would be lost, since transcriptions now
+// run in the background and quitting kills them.
+func (m model) quitConfirmView() string {
+	if n := len(m.running); n > 0 {
+		job := "job is"
+		if n > 1 {
+			job = "jobs are"
+		}
+		return fmt.Sprintf("Quit vmt?\n\n%d transcription %s still running and will be lost.\n\n[y] yes  [n/esc] cancel", n, job)
+	}
+	return "Quit vmt?\n\n[y] yes  [n/esc] cancel"
 }
 
 func (m model) View() string {
@@ -238,14 +307,12 @@ func (m model) View() string {
 		return header + m.list.View()
 	case screenConfirm:
 		return m.confirm.View()
-	case screenProgress:
-		return m.progress.View()
 	case screenPreview:
 		return m.preview.View()
 	case screenSettings:
 		return m.settings.View()
 	case screenQuitConfirm:
-		return "Quit vmt?\n\n[y] yes  [n/esc] cancel"
+		return m.quitConfirmView()
 	}
 	return "Loading recordings..."
 }

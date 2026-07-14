@@ -12,7 +12,7 @@ import (
 
 func TestTranscribeCmd_MissingKeyReturnsError(t *testing.T) {
 	cfg := config.Config{}
-	cmd := transcribeCmd(cfg, voicememos.Recording{Path: "test.m4a"})
+	cmd := transcribeCmd(cfg, voicememos.Recording{Path: "test.m4a", Title: "Test"})
 	msg := cmd()
 	done, ok := msg.(transcribeDoneMsg)
 	if !ok {
@@ -20,6 +20,9 @@ func TestTranscribeCmd_MissingKeyReturnsError(t *testing.T) {
 	}
 	if done.err == nil {
 		t.Fatal("expected error for missing API key")
+	}
+	if done.path != "test.m4a" {
+		t.Errorf("path: got %q, want %q — the result must name its recording", done.path, "test.m4a")
 	}
 	if !strings.Contains(done.err.Error(), "ElevenLabs API key not set") {
 		t.Errorf("error message: got %q, want to contain 'ElevenLabs API key not set'", done.err.Error())
@@ -41,15 +44,75 @@ func TestStartTranscribe_NoKeySetsStatus(t *testing.T) {
 	}
 }
 
-func TestTranscribeDone_WithErrorSetsStatus(t *testing.T) {
-	m := model{
-		cfg:      config.Config{},
-		selected: voicememos.Recording{Title: "Meeting"},
+func TestStartJob_ReturnsToListAndRunsInBackground(t *testing.T) {
+	m := withKey(model{})
+	rec := voicememos.Recording{Path: "a.m4a", Title: "Meeting"}
+
+	updated, cmd := m.Update(startJobMsg{recording: rec})
+	got := updated.(model)
+
+	if got.screen != screenList {
+		t.Errorf("screen: got %v, want screenList — the user must keep control while it transcribes", got.screen)
 	}
-	updated, _ := m.Update(transcribeDoneMsg{err: errMissingKey})
+	if !got.running["a.m4a"] {
+		t.Error("the recording should be marked as in flight")
+	}
+	if cmd == nil {
+		t.Fatal("expected a background transcription command")
+	}
+}
+
+func TestStartJob_SecondJobRunsAlongsideTheFirst(t *testing.T) {
+	m := withKey(model{})
+	first, _ := m.Update(startJobMsg{recording: voicememos.Recording{Path: "a.m4a", Title: "A"}})
+	second, _ := first.(model).Update(startJobMsg{recording: voicememos.Recording{Path: "b.m4a", Title: "B"}})
+	got := second.(model)
+
+	if len(got.running) != 2 {
+		t.Errorf("running jobs: got %d, want 2 — jobs must not block each other", len(got.running))
+	}
+}
+
+func TestStartTranscribe_AlreadyRunningIsRejected(t *testing.T) {
+	m := withKey(model{running: map[string]bool{"a.m4a": true}})
+
+	updated, _ := m.Update(startTranscribeMsg{recording: voicememos.Recording{Path: "a.m4a", Title: "Meeting"}})
+	got := updated.(model)
+
+	if got.screen != screenList {
+		t.Errorf("screen: got %v, want screenList (no confirm for an in-flight job)", got.screen)
+	}
+	if !strings.Contains(got.statusMsg, "Already transcribing") {
+		t.Errorf("statusMsg: got %q, want it to say the job is already running", got.statusMsg)
+	}
+}
+
+func TestTranscribeDone_ClearsRunningJob(t *testing.T) {
+	m := model{cfg: config.Config{}, running: map[string]bool{"a.m4a": true}}
+
+	updated, _ := m.Update(transcribeDoneMsg{path: "a.m4a", title: "Meeting"})
+	got := updated.(model)
+
+	if got.running["a.m4a"] {
+		t.Error("a finished job must not stay marked as running")
+	}
+	if got.failed["a.m4a"] {
+		t.Error("a successful job must not be marked as failed")
+	}
+}
+
+func TestTranscribeDone_WithErrorSetsStatus(t *testing.T) {
+	m := model{cfg: config.Config{}, running: map[string]bool{"a.m4a": true}}
+	updated, _ := m.Update(transcribeDoneMsg{path: "a.m4a", title: "Meeting", err: errMissingKey})
 	got := updated.(model)
 	if !got.statusIsErr {
 		t.Error("statusIsErr should be true on error")
+	}
+	if !got.failed["a.m4a"] {
+		t.Error("a failed job should be marked as failed")
+	}
+	if got.running["a.m4a"] {
+		t.Error("a failed job must not stay marked as running")
 	}
 	if !strings.Contains(got.statusMsg, "Error:") {
 		t.Errorf("statusMsg: got %q, want to contain 'Error:'", got.statusMsg)
@@ -57,17 +120,16 @@ func TestTranscribeDone_WithErrorSetsStatus(t *testing.T) {
 }
 
 func TestTranscribeDone_SuccessSetsStatus(t *testing.T) {
-	m := model{
-		cfg:      config.Config{},
-		selected: voicememos.Recording{Title: "Meeting"},
-	}
-	updated, _ := m.Update(transcribeDoneMsg{})
+	// The status must come from the message, not from the last selected recording:
+	// another job may have been started since.
+	m := model{cfg: config.Config{}, selected: voicememos.Recording{Title: "Something Else"}}
+	updated, _ := m.Update(transcribeDoneMsg{path: "a.m4a", title: "Meeting"})
 	got := updated.(model)
 	if got.statusIsErr {
 		t.Error("statusIsErr should be false on success")
 	}
 	if !strings.Contains(got.statusMsg, "Meeting") {
-		t.Errorf("statusMsg: got %q, want to contain recording title", got.statusMsg)
+		t.Errorf("statusMsg: got %q, want the title of the finished job", got.statusMsg)
 	}
 }
 
@@ -129,4 +191,22 @@ func TestQuit_CtrlCFromNonListShowsConfirm(t *testing.T) {
 	if cmd != nil {
 		t.Error("ctrl+c should NOT return tea.Quit directly anymore")
 	}
+}
+
+func TestQuitConfirmView_WarnsAboutRunningJobs(t *testing.T) {
+	idle := model{}
+	if strings.Contains(idle.quitConfirmView(), "running") {
+		t.Error("idle quit confirm should not warn about jobs")
+	}
+
+	busy := model{running: map[string]bool{"a.m4a": true, "b.m4a": true}}
+	if !strings.Contains(busy.quitConfirmView(), "2 transcription jobs are still running") {
+		t.Errorf("quit confirm should warn that work will be lost, got:\n%s", busy.quitConfirmView())
+	}
+}
+
+// withKey returns m with an API key set, so the confirm/job path is reachable.
+func withKey(m model) model {
+	m.cfg.Engines.ElevenLabs.APIKey = "sk-test"
+	return m
 }

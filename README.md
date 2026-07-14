@@ -15,30 +15,44 @@ Transcribe macOS Voice Memos recordings via ElevenLabs Scribe. Single Go binary 
 ### TUI (`vmt tui`)
 
 ```
-┌───┬──────────────────────────────────────────┬───────────────────┬──────────┐
-│   │ Title                                    │ Date              │ Duration │
-├───┼──────────────────────────────────────────┼───────────────────┼──────────┤
-│   │ AI Moderator Meeting                     │ 2026-04-15 11:33  │ 1h06m    │
-│   │ Lunch notes                              │ 2026-04-14 12:00  │ 15m23s   │
-│ ✓ │ Product review Q2                        │ 2026-04-10 15:30  │ 45m12s   │
-│   │ Quick idea                               │ 2026-04-08 09:05  │ 0m45s    │
-│ ✓ │ Team standup                             │ 2026-04-05 10:00  │ 30m34s   │
-└───┴──────────────────────────────────────────┴───────────────────┴──────────┘
+┌───┬──────────────────────────────────────────┬───────────────────┬──────────┬─────────┐
+│   │ Title                                    │ Date              │ Duration │   Chars │
+├───┼──────────────────────────────────────────┼───────────────────┼──────────┼─────────┤
+│ ⠹ │ AI Moderator Meeting                     │ 2026-04-15 11:33  │ 1h06m    │       - │
+│ ⠹ │ Lunch notes                              │ 2026-04-14 12:00  │ 15m23s   │       - │
+│ ✓ │ Product review Q2                        │ 2026-04-10 15:30  │ 45m12s   │  38,204 │
+│   │ Quick idea                               │ 2026-04-08 09:05  │ 0m45s    │       - │
+│ ✓ │ Team standup                             │ 2026-04-05 10:00  │ 30m34s   │  12,730 │
+└───┴──────────────────────────────────────────┴───────────────────┴──────────┴─────────┘
 
-✓ = transcribed • ↑/↓ navigate • enter transcribe • p preview • s settings • q quit
+⠹ 2 transcription jobs running
+✓ done • ✗ failed • ↑/↓ navigate • enter transcribe • p preview • s settings • q quit (confirm)
 ```
+
+Transcriptions run in the background: press `enter`, confirm the cost, and you are
+returned to the list while the job runs. You can keep browsing, open a preview, or
+queue more recordings. The leftmost column tracks each recording's state — blank
+(not transcribed), `⠹` (transcribing), `✓` (done), `✗` (failed) — and the footer
+counts the jobs still in flight.
+
+`Chars` is the size of the transcription: the rune count of the `txt` output (or
+the first configured format when `txt` is not among them).
 
 ### Preview screen (`p` on a row)
 
 ```
-[txt] ←/→ switch format • c copy • esc back
-
 [00:15] speaker_0: Good morning everyone, let's get started.
 [00:23] speaker_1: Thanks. I'll share the updated numbers.
 [01:04] speaker_0: Sounds good. What about the Q2 outlook?
 [01:23] speaker_1: Up 18% year over year — details in the deck.
 ...
+
+copied! • [txt] ←/→ switch format • c copy • esc back
 ```
+
+The transcription scrolls with `↑/↓`; the help line stays pinned to the bottom.
+`c` copies the whole transcription to the clipboard and flashes the screen to
+confirm.
 
 ### Transcribe confirmation (`enter` on a row)
 
@@ -68,7 +82,8 @@ Team standup          2026-04-05 10:00  30m34s    20260405_100000.m4a
 - **Pluggable STT engines** — ElevenLabs Scribe v1/v2 at launch, easy to add more
 - **Multi-format output** — txt, md, json, csv, xml generated from a single API call
 - **Speaker diarization** (via ElevenLabs `diarize`)
-- **Interactive TUI** (bubbletea) — list, transcribe, preview, settings, clipboard copy
+- **Interactive TUI** (bubbletea) — list, preview, settings, clipboard copy
+- **Background transcription** — jobs run concurrently while you keep using the list, with per-recording status and a running-job count
 - **Alfred Script Filter** — see [alfred-workflow/](alfred-workflow/)
 - **Raycast Script Commands** — see [raycast/](raycast/)
 - **File watcher** — auto-transcribe new recordings (foreground or launchd agent)
@@ -142,10 +157,20 @@ vmt watch --uninstall          # remove launchd agent
 |----------|----------------------------------------------------------------|
 | list     | `↑/↓` navigate • `enter` transcribe • `p` preview • `s` settings • `q` quit |
 | confirm  | `y` confirm • `n`/`esc` cancel                                 |
-| preview  | `←/→` switch format • `c` copy to clipboard (pbcopy) • `esc` back |
+| preview  | `↑/↓` scroll • `←/→` switch format • `c` copy to clipboard (pbcopy) • `esc` back |
 | settings | `↑/↓` navigate • `esc` back                                    |
 
-In the list, a `✓` mark in the leftmost column means that recording has at least one output file in your configured `output_dir`.
+The leftmost column of the list is a status column:
+
+| Mark | Meaning                                                           |
+|------|-------------------------------------------------------------------|
+| (blank) | Not transcribed — no output file in your configured `output_dir` |
+| `⠹`  | Transcribing in the background                                    |
+| `✓`  | Transcribed — at least one output file exists                     |
+| `✗`  | The last transcription failed (the error is shown above the list)  |
+
+Quitting while jobs are still running cancels them, so the quit prompt says how
+many would be lost.
 
 ## Config
 

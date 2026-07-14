@@ -22,7 +22,8 @@ func (m confirmModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if key, ok := msg.(tea.KeyMsg); ok {
 		switch key.String() {
 		case "y", "Y":
-			return m, func() tea.Msg { return navigateMsg{to: screenProgress} }
+			rec := m.recording
+			return m, func() tea.Msg { return startJobMsg{recording: rec} }
 		case "n", "N", "esc":
 			return m, func() tea.Msg { return backMsg{} }
 		}

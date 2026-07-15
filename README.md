@@ -84,7 +84,7 @@ Settings
 
   Engine       elevenlabs
 > Model        < scribe_v2 >
-  Language     jpn
+  Language     < auto >
   Diarize      < true >
   API Key      sk-a***wxyz
   Output Dir   ~/Downloads/voice-memo-transcription
@@ -97,10 +97,19 @@ Settings
 ←/→ change • ↑/↓ navigate • esc back
 ```
 
-Every edit is written to `config.json` right away. `←/→` cycles the model and
-toggles diarization, `space` checks a format on or off, and `enter` opens a text
-field for the language code or API key. The engine is fixed to ElevenLabs. The
-API key is masked on screen (stored in `config.json` with `0600` permissions).
+Every edit is written to `config.json` right away. `←/→` cycles the model,
+language, and diarization, `space` checks a format on or off, and `enter` opens a
+text field for the API key. The engine is fixed to ElevenLabs. The API key is
+masked on screen (stored in `config.json` with `0600` permissions).
+
+ElevenLabs Scribe is multilingual. `Language` cycles a short list of common
+languages plus `auto` (auto-detect); the settings default is `auto`. Scribe
+supports far more — set any ISO-639-1/639-3 code directly if it is not in the
+list:
+
+```bash
+vmt config set language_code ko     # or leave empty for auto-detect
+```
 
 ### CLI (`vmt list`)
 
@@ -119,6 +128,7 @@ Team standup          2026-04-05 10:00  30m34s    20260405_100000.m4a
 - **Read macOS Voice Memos directly** from its SQLite database (read-only, no data mutation)
 - **Pluggable STT engines** — ElevenLabs Scribe v1/v2 at launch, easy to add more
 - **Multi-format output** — txt, md, json, csv, xml generated from a single API call
+- **Multilingual** — ElevenLabs Scribe handles many languages; pick one in settings or leave it on auto-detect
 - **Speaker diarization** (via ElevenLabs `diarize`)
 - **Interactive TUI** (bubbletea) — list, preview, clipboard copy
 - **Editable settings** — change the ElevenLabs model, output formats, language, diarization, and API key from the `s` screen; every change is saved to `config.json` immediately
@@ -198,7 +208,7 @@ vmt watch --uninstall          # remove launchd agent
 | list     | `↑/↓` navigate • `enter` transcribe • `p` preview • `s` settings • `q` quit |
 | confirm  | `y` confirm • `n`/`esc` cancel                                 |
 | preview  | `↑/↓` scroll • `←/→` switch format • `c` copy to clipboard (pbcopy) • `e` edit in `$EDITOR` • `esc` back |
-| settings | `↑/↓` navigate • `←/→` change model/diarize • `space` toggle a format • `enter` edit language/API key • `esc` back |
+| settings | `↑/↓` navigate • `←/→` change model/language/diarize • `space` toggle a format • `enter` edit API key • `esc` back |
 
 The leftmost column of the list is a status column:
 
@@ -225,7 +235,7 @@ many would be lost.
   "engine": "elevenlabs",
   "output_formats": ["txt", "json"],
   "output_dir": "~/Downloads/voice-memo-transcription",
-  "language_code": "jpn",
+  "language_code": "",
   "diarize": true,
   "editor": "nvim",
   "engines": {
@@ -242,7 +252,7 @@ many would be lost.
 | `engines.elevenlabs.api_key` | `ELEVENLABS_API_KEY` | (none, required) |
 | `engine` | `VMT_ENGINE` | `elevenlabs` |
 | `output_dir` | `VMT_OUTPUT_DIR` | `~/Downloads/voice-memo-transcription` |
-| `language_code` | `VMT_LANGUAGE` | `jpn` |
+| `language_code` | `VMT_LANGUAGE` | (empty → auto-detect) |
 | `editor` | `VMT_EDITOR` | `$VISUAL`, then `$EDITOR`, then `vi` |
 
 ElevenLabs models:

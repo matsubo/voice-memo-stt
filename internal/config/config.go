@@ -50,7 +50,7 @@ func Defaults() Config {
 		Engine:        "elevenlabs",
 		OutputFormats: []string{"txt", "json"},
 		OutputDir:     "~/Downloads/voice-memo-transcription",
-		LanguageCode:  "jpn",
+		LanguageCode:  "", // empty → ElevenLabs auto-detects the language
 		Diarize:       true,
 		Engines: EnginesConfig{
 			ElevenLabs: ElevenLabsConfig{

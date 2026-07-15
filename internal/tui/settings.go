@@ -13,13 +13,31 @@ import (
 // modelOptions are the ElevenLabs models the user can cycle between.
 var modelOptions = []string{"scribe_v1", "scribe_v2"}
 
+// languageOptions are the languages offered in the settings cycle. The empty
+// code means auto-detect. ElevenLabs accepts ISO-639-1 or -3 codes and supports
+// far more than these; any other code can be set via `vmt config set`.
+var languageOptions = []struct{ code, name string }{
+	{"", "auto"},
+	{"ja", "Japanese"},
+	{"en", "English"},
+	{"zh", "Chinese"},
+	{"ko", "Korean"},
+	{"es", "Spanish"},
+	{"fr", "French"},
+	{"de", "German"},
+	{"pt", "Portuguese"},
+	{"ru", "Russian"},
+	{"it", "Italian"},
+}
+
 type rowKind int
 
 const (
 	rowDisplay rowKind = iota // shown but not editable (Engine, Output Dir)
 	rowChoice                 // cycle through options with ←/→ (Model)
+	rowLang                   // cycle through languages with ←/→
 	rowBool                   // toggle with ←/→ or space (Diarize)
-	rowText                   // edit via a text input (Language, API Key)
+	rowText                   // edit via a text input (API Key)
 	rowFormat                 // a single output-format checkbox
 )
 
@@ -44,7 +62,7 @@ func newSettingsModel(cfg config.Config) settingsModel {
 	rows := []settingsRow{
 		{label: "Engine", kind: rowDisplay},
 		{label: "Model", kind: rowChoice, options: modelOptions},
-		{label: "Language", kind: rowText},
+		{label: "Language", kind: rowLang},
 		{label: "Diarize", kind: rowBool},
 		{label: "API Key", kind: rowText, masked: true},
 		{label: "Output Dir", kind: rowDisplay},
@@ -100,6 +118,12 @@ func (m settingsModel) editRow(row settingsRow, key tea.KeyMsg) (tea.Model, tea.
 			m.cfg.Engines.ElevenLabs.Model = cycle(row.options, currentModel(m.cfg), dir(key))
 			return m, m.changed()
 		}
+	case rowLang:
+		switch key.String() {
+		case "left", "right", "enter", " ":
+			m.cfg.LanguageCode = cycle(languageCycle(m.cfg.LanguageCode), m.cfg.LanguageCode, dir(key))
+			return m, m.changed()
+		}
 	case rowBool:
 		switch key.String() {
 		case "left", "right", "enter", " ":
@@ -142,20 +166,14 @@ func (m settingsModel) updateEditing(key tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 // textValue is the raw (unmasked) value seeded into the editor for a text row.
 func (m settingsModel) textValue(row settingsRow) string {
-	switch row.label {
-	case "Language":
-		return m.cfg.LanguageCode
-	case "API Key":
+	if row.label == "API Key" {
 		return m.cfg.Engines.ElevenLabs.APIKey
 	}
 	return ""
 }
 
 func (m *settingsModel) commit(row settingsRow, value string) {
-	switch row.label {
-	case "Language":
-		m.cfg.LanguageCode = value
-	case "API Key":
+	if row.label == "API Key" {
 		m.cfg.Engines.ElevenLabs.APIKey = value
 	}
 }
@@ -164,6 +182,8 @@ func (m settingsModel) displayValue(row settingsRow) string {
 	switch row.kind {
 	case rowChoice:
 		return "< " + currentModel(m.cfg) + " >"
+	case rowLang:
+		return "< " + languageDisplay(m.cfg.LanguageCode) + " >"
 	case rowBool:
 		return fmt.Sprintf("< %v >", m.cfg.Diarize)
 	case rowFormat:
@@ -220,7 +240,7 @@ func (m settingsModel) helpLine() string {
 		return "type value • enter save • esc cancel"
 	}
 	switch m.rows[m.cursor].kind {
-	case rowChoice, rowBool:
+	case rowChoice, rowLang, rowBool:
 		return "←/→ change • ↑/↓ navigate • esc back"
 	case rowFormat:
 		return "space toggle • ↑/↓ navigate • esc back"
@@ -245,6 +265,33 @@ func dir(key tea.KeyMsg) int {
 		return -1
 	}
 	return 1
+}
+
+// languageCycle is the ordered set of language codes to cycle through, including
+// the current code if it is not one of the curated options (set via config),
+// so cycling never silently discards it.
+func languageCycle(current string) []string {
+	codes := make([]string, 0, len(languageOptions)+1)
+	for _, o := range languageOptions {
+		codes = append(codes, o.code)
+	}
+	if current != "" && indexOfStr(codes, current) < 0 {
+		codes = append(codes, current)
+	}
+	return codes
+}
+
+// languageDisplay renders a code as a readable label ("ja — Japanese", "auto").
+func languageDisplay(code string) string {
+	for _, o := range languageOptions {
+		if o.code == code {
+			if code == "" {
+				return o.name // "auto"
+			}
+			return code + " — " + o.name
+		}
+	}
+	return code // a custom code set outside the curated list
 }
 
 func cycle(options []string, current string, delta int) string {

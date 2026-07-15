@@ -87,45 +87,58 @@ func TestSettings_ToggleFormatOffAndOn(t *testing.T) {
 	}
 }
 
-func TestSettings_EditLanguageCommits(t *testing.T) {
-	m := cursorOn(t, newSettingsModel(baseCfg()), "Language")
+func TestSettings_CycleLanguage(t *testing.T) {
+	cfg := baseCfg()
+	cfg.LanguageCode = "" // auto
+	m := cursorOn(t, newSettingsModel(cfg), "Language")
 
-	// enter starts editing; no config change yet.
-	editing, cmd := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	em := editing.(settingsModel)
-	if !em.editing {
-		t.Fatal("enter on a text row should start editing")
-	}
-	if cmd != nil {
-		t.Error("starting an edit must not announce a config change yet")
+	// → from auto moves to the first real language.
+	next, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	if got := changedCfg(t, cmd).LanguageCode; got != "ja" {
+		t.Errorf("language after → from auto: got %q, want ja", got)
 	}
 
-	em.input.SetValue("eng")
-	done, cmd := em.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	if done.(settingsModel).editing {
-		t.Error("enter should commit and leave edit mode")
+	// ← from auto wraps to the last option (a real language, not empty twice).
+	back, cmd := m.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	if got := changedCfg(t, cmd).LanguageCode; got == "" {
+		t.Error("← from auto should wrap to a language, not stay on auto")
 	}
-	if got := changedCfg(t, cmd).LanguageCode; got != "eng" {
-		t.Errorf("language: got %q, want eng", got)
-	}
+	_ = next
+	_ = back
 }
 
-func TestSettings_EditEscapeCancels(t *testing.T) {
-	m := cursorOn(t, newSettingsModel(baseCfg()), "Language")
-	editing, _ := m.Update(tea.KeyMsg{Type: tea.KeyEnter})
-	em := editing.(settingsModel)
-	em.input.SetValue("eng")
+func TestSettings_CycleLanguageKeepsCustomCode(t *testing.T) {
+	cfg := baseCfg()
+	cfg.LanguageCode = "swa" // not in the curated list
+	m := cursorOn(t, newSettingsModel(cfg), "Language")
 
-	cancelled, cmd := em.Update(tea.KeyMsg{Type: tea.KeyEsc})
-	cm := cancelled.(settingsModel)
-	if cm.editing {
-		t.Error("esc should leave edit mode")
+	// The custom code is displayed as-is and stays reachable in the cycle.
+	if !strings.Contains(m.View(), "swa") {
+		t.Errorf("a custom language code should be shown, view:\n%s", m.View())
 	}
-	if cm.cfg.LanguageCode != "jpn" {
-		t.Errorf("esc must discard the edit, language changed to %q", cm.cfg.LanguageCode)
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	if got := changedCfg(t, cmd).LanguageCode; got == "swa" {
+		t.Error("→ should advance away from the custom code")
 	}
-	if cmd != nil {
-		t.Error("a cancelled edit must not announce a config change")
+	// Cycling all the way around must return to the custom code, not drop it.
+	cur := "swa"
+	codes := languageCycle("swa")
+	if indexOf(codes, "swa") < 0 {
+		t.Fatalf("custom code missing from cycle: %v", codes)
+	}
+	_ = cur
+}
+
+func TestSettings_LanguageDisplaysAutoAndName(t *testing.T) {
+	cfg := baseCfg()
+	cfg.LanguageCode = ""
+	if !strings.Contains(newSettingsModel(cfg).View(), "auto") {
+		t.Error("an empty language code should read as 'auto'")
+	}
+
+	cfg.LanguageCode = "ja"
+	if !strings.Contains(newSettingsModel(cfg).View(), "Japanese") {
+		t.Error("a known language should show its name")
 	}
 }
 

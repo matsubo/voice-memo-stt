@@ -27,6 +27,7 @@ const (
 
 type model struct {
 	cfg         config.Config
+	cfgPath     string // where settings edits are persisted
 	screen      screen
 	prevScreen  screen // screen active before quit confirm was shown
 	list        listModel
@@ -44,9 +45,10 @@ type model struct {
 	height      int
 }
 
-// Run starts the bubbletea TUI program with alt-screen.
-func Run(cfg config.Config) error {
-	m := model{cfg: cfg}
+// Run starts the bubbletea TUI program with alt-screen. cfgPath is where the
+// settings screen persists changes.
+func Run(cfg config.Config, cfgPath string) error {
+	m := model{cfg: cfg, cfgPath: cfgPath}
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	_, err := p.Run()
 	return err
@@ -107,6 +109,18 @@ type missingKeyError struct{}
 
 func (*missingKeyError) Error() string {
 	return "ElevenLabs API key not set — run: vmt config set engines.elevenlabs.api_key sk-..."
+}
+
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // withJob returns a copy of set with key added or removed, so a previous model
@@ -236,6 +250,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.screen = screenList
 			return m, nil
 		}
+
+	case configChangedMsg:
+		// Persist settings edits immediately. A format change also alters the
+		// list's ✓ marks and char counts, so rebuild the list when it happens.
+		formatsChanged := !equalStrings(m.cfg.OutputFormats, msg.cfg.OutputFormats)
+		m.cfg = msg.cfg
+		m.settings.cfg = msg.cfg
+		if err := config.Save(m.cfgPath, m.cfg); err != nil {
+			m.settings.saveErr = err.Error()
+		} else {
+			m.settings.saveErr = ""
+		}
+		if formatsChanged {
+			m = m.rebuildList()
+		}
+		return m, nil
 
 	case backMsg:
 		m.screen = screenList

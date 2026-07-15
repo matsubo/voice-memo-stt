@@ -1,6 +1,8 @@
 package tui
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -209,4 +211,57 @@ func TestQuitConfirmView_WarnsAboutRunningJobs(t *testing.T) {
 func withKey(m model) model {
 	m.cfg.Engines.ElevenLabs.APIKey = "sk-test"
 	return m
+}
+
+func TestConfigChanged_PersistsAndAdopts(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.json")
+
+	m := model{cfg: config.Defaults(), cfgPath: path}
+	m.settings = newSettingsModel(m.cfg)
+
+	next := config.Defaults()
+	next.LanguageCode = "eng"
+	next.Engines.ElevenLabs.APIKey = "sk-new"
+
+	updated, _ := m.Update(configChangedMsg{cfg: next})
+	got := updated.(model)
+
+	if got.cfg.LanguageCode != "eng" {
+		t.Errorf("app must adopt the edited config, language is %q", got.cfg.LanguageCode)
+	}
+
+	saved, err := config.Load(path)
+	if err != nil {
+		t.Fatalf("reload saved config: %v", err)
+	}
+	if saved.LanguageCode != "eng" || saved.Engines.ElevenLabs.APIKey != "sk-new" {
+		t.Errorf("settings edit was not written to disk: %+v", saved)
+	}
+}
+
+func TestConfigChanged_FormatChangeRebuildsList(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "rec.md"), []byte("# hi"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := config.Defaults()
+	cfg.OutputDir = dir
+	cfg.OutputFormats = []string{"txt"} // rec.md not counted yet
+	m := model{cfg: cfg, cfgPath: filepath.Join(dir, "config.json")}
+	m.recordings = []voicememos.Recording{{Path: "rec.m4a", Title: "Rec"}}
+	m.list = newListModel(m.recordings, cfg.OutputDir, cfg.OutputFormats)
+
+	if m.list.cells[0].done {
+		t.Fatal("precondition: rec should not be marked done for txt-only")
+	}
+
+	next := cfg
+	next.OutputFormats = []string{"txt", "md"} // now md counts
+
+	updated, _ := m.Update(configChangedMsg{cfg: next})
+	if !updated.(model).list.cells[0].done {
+		t.Error("enabling the md format should re-mark the recording as transcribed")
+	}
 }

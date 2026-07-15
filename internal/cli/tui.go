@@ -9,6 +9,6 @@ var tuiCmd = &cobra.Command{
 	Use:   "tui",
 	Short: "Launch interactive TUI",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return tui.Run(cfg)
+		return tui.Run(cfg, cfgPath)
 	},
 }

@@ -77,6 +77,31 @@ Estimated cost: $0.2447
 [y] confirm  [n/esc] cancel
 ```
 
+### Settings (`s`)
+
+```
+Settings
+
+  Engine       elevenlabs
+> Model        < scribe_v2 >
+  Language     jpn
+  Diarize      < true >
+  API Key      sk-a***wxyz
+  Output Dir   ~/Downloads/voice-memo-transcription
+               [x] txt
+               [ ] md
+               [x] json
+               [ ] csv
+               [ ] xml
+
+←/→ change • ↑/↓ navigate • esc back
+```
+
+Every edit is written to `config.json` right away. `←/→` cycles the model and
+toggles diarization, `space` checks a format on or off, and `enter` opens a text
+field for the language code or API key. The engine is fixed to ElevenLabs. The
+API key is masked on screen (stored in `config.json` with `0600` permissions).
+
 ### CLI (`vmt list`)
 
 ```
@@ -95,7 +120,8 @@ Team standup          2026-04-05 10:00  30m34s    20260405_100000.m4a
 - **Pluggable STT engines** — ElevenLabs Scribe v1/v2 at launch, easy to add more
 - **Multi-format output** — txt, md, json, csv, xml generated from a single API call
 - **Speaker diarization** (via ElevenLabs `diarize`)
-- **Interactive TUI** (bubbletea) — list, preview, settings, clipboard copy
+- **Interactive TUI** (bubbletea) — list, preview, clipboard copy
+- **Editable settings** — change the ElevenLabs model, output formats, language, diarization, and API key from the `s` screen; every change is saved to `config.json` immediately
 - **Edit transcriptions in place** — open the output in `$EDITOR` (nvim, …) from the preview and correct it
 - **Background transcription** — jobs run concurrently while you keep using the list, with per-recording status and a running-job count
 - **Alfred Script Filter** — see [alfred-workflow/](alfred-workflow/)
@@ -172,7 +198,7 @@ vmt watch --uninstall          # remove launchd agent
 | list     | `↑/↓` navigate • `enter` transcribe • `p` preview • `s` settings • `q` quit |
 | confirm  | `y` confirm • `n`/`esc` cancel                                 |
 | preview  | `↑/↓` scroll • `←/→` switch format • `c` copy to clipboard (pbcopy) • `e` edit in `$EDITOR` • `esc` back |
-| settings | `↑/↓` navigate • `esc` back                                    |
+| settings | `↑/↓` navigate • `←/→` change model/diarize • `space` toggle a format • `enter` edit language/API key • `esc` back |
 
 The leftmost column of the list is a status column:
 

@@ -32,6 +32,10 @@ var formatters = map[string]fmter{
 	"xml":  xmlFormatter{},
 }
 
+// SupportedFormats lists every output format in a stable display order, so
+// callers (the settings UI) can present them consistently.
+var SupportedFormats = []string{"txt", "md", "json", "csv", "xml"}
+
 func Write(dir string, ctx Context, formats []string) error {
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return fmt.Errorf("create output dir: %w", err)

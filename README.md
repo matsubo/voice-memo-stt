@@ -183,6 +183,10 @@ The leftmost column of the list is a status column:
 | `✓`  | Transcribed — at least one output file exists                     |
 | `✗`  | The last transcription failed (the error is shown above the list)  |
 
+The footer lists only the keys that apply to the highlighted row: `p preview`
+appears for a transcribed recording and is hidden (and does nothing) on one that
+has not been transcribed yet.
+
 Quitting while jobs are still running cancels them, so the quit prompt says how
 many would be lost.
 

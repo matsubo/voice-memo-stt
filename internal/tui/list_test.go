@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	tea "github.com/charmbracelet/bubbletea"
 	"github.com/matsubo/voice-memo-stt/internal/voicememos"
 )
 
@@ -198,5 +199,44 @@ func write(t *testing.T, dir, name, content string) {
 	t.Helper()
 	if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestListUpdate_PreviewOnlyWhenTranscribed(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, "recording.txt", "done") // first row transcribed, second not
+	m := newListModel(testRecordings(), dir, []string{"txt"})
+
+	// Transcribed row: p opens the preview.
+	m.table.SetCursor(0)
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+	if cmd == nil {
+		t.Fatal("p on a transcribed recording should navigate")
+	}
+	if nav, ok := cmd().(navigateMsg); !ok || nav.to != screenPreview {
+		t.Errorf("p on a transcribed recording should open the preview, got %T", cmd())
+	}
+
+	// Untranscribed row: p does nothing at all.
+	m.table.SetCursor(1)
+	_, cmd = m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'p'}})
+	if cmd != nil {
+		t.Errorf("p on an untranscribed recording must be a no-op, got %T", cmd())
+	}
+}
+
+func TestListView_PreviewHintTracksSelectedRow(t *testing.T) {
+	dir := t.TempDir()
+	write(t, dir, "recording.txt", "done") // row 0 transcribed, row 1 not
+	m := newListModel(testRecordings(), dir, []string{"txt"})
+
+	m.table.SetCursor(0)
+	if !strings.Contains(m.View(), "p preview") {
+		t.Error("the preview hint should appear when the selected row is transcribed")
+	}
+
+	m.table.SetCursor(1)
+	if strings.Contains(m.View(), "p preview") {
+		t.Error("the preview hint must disappear when the selected row has no transcription")
 	}
 }

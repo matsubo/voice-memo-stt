@@ -203,6 +203,16 @@ func (m listModel) selected() (voicememos.Recording, bool) {
 	return m.recordings[idx], true
 }
 
+// selectedDone reports whether the highlighted recording has a transcription on
+// disk, so the preview is only offered when there is something to show.
+func (m listModel) selectedDone() bool {
+	idx := m.table.Cursor()
+	if idx < 0 || idx >= len(m.cells) {
+		return false
+	}
+	return m.cells[idx].done
+}
+
 func (m listModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case spinner.TickMsg:
@@ -222,9 +232,12 @@ func (m listModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				return m, func() tea.Msg { return startTranscribeMsg{recording: rec} }
 			}
 		case "p":
-			if _, ok := m.selected(); ok {
+			// Preview is only meaningful once something has been transcribed; on
+			// any other row p does nothing, and the footer hides the hint to match.
+			if _, ok := m.selected(); ok && m.selectedDone() {
 				return m, func() tea.Msg { return navigateMsg{to: screenPreview} }
 			}
+			return m, nil
 		case "s":
 			return m, func() tea.Msg { return navigateMsg{to: screenSettings} }
 		}
@@ -248,8 +261,19 @@ func (m listModel) jobsLine() string {
 	return fmt.Sprintf("%s %d transcription %s running", m.spinner.View(), n, job)
 }
 
+// helpLine lists the actions available for the row under the cursor, so keys
+// that would do nothing (preview on an untranscribed recording) are not offered.
+func (m listModel) helpLine() string {
+	parts := []string{"✓ done • ✗ failed", "↑/↓ navigate", "enter transcribe"}
+	if m.selectedDone() {
+		parts = append(parts, "p preview")
+	}
+	parts = append(parts, "s settings", "q quit (confirm)")
+	return strings.Join(parts, " • ")
+}
+
 func (m listModel) View() string {
-	help := "✓ done • ✗ failed • ↑/↓ navigate • enter transcribe • p preview • s settings • q quit (confirm)"
+	help := m.helpLine()
 	if jobs := m.jobsLine(); jobs != "" {
 		help = jobs + "\n" + help
 	}

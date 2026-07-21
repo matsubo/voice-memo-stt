@@ -143,7 +143,7 @@ Team standup          2026-04-05 10:00  30m34s    20260405_100000.m4a
 - **Background transcription** — jobs run concurrently while you keep using the list, with per-recording status and a running-job count
 - **Completion beep** (opt-in) — ring the terminal bell when a background job finishes
 - **Alfred Script Filter** — see [alfred-workflow/](alfred-workflow/)
-- **Raycast Script Commands** — see [raycast/](raycast/)
+- **Raycast extension** — searchable list with a ⌘K action panel, see [raycast-extension/](raycast-extension/)
 - **File watcher** — auto-transcribe new recordings (foreground or launchd agent)
 - **Cost estimation** before transcription
 
@@ -303,23 +303,40 @@ A Homebrew install ships the plist at `$(brew --prefix vmt)/share/vmt/alfred-wor
 
 ## Raycast
 
-The [`raycast/`](raycast/) directory contains 5 Raycast Script Commands:
+[`raycast-extension/`](raycast-extension/) is a Raycast extension: a searchable
+list of recordings with a `✓`/`○` transcription mark, and an action panel on
+**⌘K** for each one.
 
-- **Transcribe All Pending** — batch transcribe untranscribed recordings
-- **Copy Latest Transcription** — `.txt` → clipboard
-- **List Voice Memos Recordings** — show recordings with `✓` marks
-- **Open Voice Memos TUI** — launch `vmt tui` in Terminal.app
-- **Toggle Watch Agent** — install/uninstall launchd watch agent
-
-Setup: Raycast → Settings → Extensions → Script Commands → **Add Directory** → point to `raycast/`. See [raycast/README.md](raycast/README.md) for details.
-
-A Homebrew install ships these too, so there is no need to clone the repo:
-
-```bash
-open "$(brew --prefix vmt)/share/vmt/raycast"    # the directory to add in Raycast
+```
+Search Voice Memos
+┌──────────────────────────────────────────────────────────────────────┐
+│ ✓  AI Moderator Meeting     2,730 chars   1h06m    3 months ago      │
+│ ✓  Lunch notes                412 chars   15m23s   3 months ago      │
+│ ○  Product review Q2                      45m12s   3 months ago      │
+│ ○  Quick idea                             0m45s    3 months ago      │
+└──────────────────────────────────────────────────────────────────────┘
+                                                  ⌘K  Actions
 ```
 
-The path is a stable symlink, so it keeps working across `brew upgrade`.
+`↵` views a transcription or transcribes a pending recording; `⌘C` copies,
+`⌘O` opens it, `⌘⇧F` reveals it in Finder, `⌘R` transcribes again. A dropdown
+filters to transcribed or pending.
+
+It is not on the Raycast Store — import it locally:
+
+```bash
+cd raycast-extension
+npm install
+npm run dev
+```
+
+**Raycast needs Full Disk Access** (see below) or every command fails. See
+[raycast-extension/README.md](raycast-extension/README.md) for details.
+
+The extension shells out to `vmt list --json`, whose shape is a contract
+declared in [`internal/listing`](internal/listing/listing.go): each recording
+carries its transcription state, character count, and absolute paths to every
+written format.
 
 ## Data source
 
@@ -358,12 +375,14 @@ internal/
   voicememos/               — SQLite reader
   engine/                   — Engine interface + registry
     elevenlabs/             — ElevenLabs Scribe client
-  formatter/                — txt/md/json/csv/xml output
+  formatter/                — txt/md/json/csv/xml output + output paths
+  listing/                  — `vmt list --json` contract
   config/                   — JSON config + env var overrides
   alfred/                   — Alfred Script Filter JSON
   watcher/                  — fsnotify + debounce + launchd
   cli/                      — cobra commands
   tui/                      — bubbletea screens
+raycast-extension/          — Raycast extension (TypeScript, consumes list --json)
 ```
 
 Adding a new STT engine:

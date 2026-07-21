@@ -21,11 +21,10 @@ archives:
     formats: [tar.gz]
     name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
     # Declaring files replaces goreleaser's defaults, so the docs it would have
-    # picked up on its own are repeated here next to the Raycast scripts.
+    # picked up on its own are repeated here next to the Alfred workflow.
     files:
       - LICENSE
       - README.md
-      - src: raycast/*
       - src: alfred-workflow/*
 
 brews:
@@ -41,21 +40,18 @@ brews:
     commit_author:
       name: goreleaserbot
       email: bot@goreleaser.com
-    # The launcher integrations are useless inside the tarball: Raycast and
-    # Alfred both need a directory to be pointed at, and one that survives
-    # upgrades.
+    # The Alfred workflow is useless inside the tarball: Alfred needs a
+    # directory to import from, and one that survives upgrades.
     extra_install: |
-      pkgshare.install "raycast"
       pkgshare.install "alfred-workflow"
     caveats: |
-      Launcher integrations are installed to:
-        #{opt_pkgshare}/raycast
+      The Alfred workflow is installed to:
         #{opt_pkgshare}/alfred-workflow
 
-      Raycast: Settings → Extensions → Script Commands → Add Directory, and
-      pick the raycast path. Alfred: import the workflow from the
-      alfred-workflow path. Both are stable symlinks, so they keep working
-      across upgrades.
+      It is a stable symlink, so it keeps working across upgrades.
+
+      Raycast users: install the extension from the repository instead —
+      https://github.com/matsubo/voice-memo-stt/tree/main/raycast-extension
 
 checksum:
   name_template: checksums.txt

@@ -299,6 +299,8 @@ The `alfred-workflow/` directory has a skeleton `info.plist`. Suggested wiring i
 
 Transcribed recordings show a `✓` icon; pending ones show a dash.
 
+A Homebrew install ships the plist at `$(brew --prefix vmt)/share/vmt/alfred-workflow`.
+
 ## Raycast
 
 The [`raycast/`](raycast/) directory contains 5 Raycast Script Commands:
@@ -310,6 +312,14 @@ The [`raycast/`](raycast/) directory contains 5 Raycast Script Commands:
 - **Toggle Watch Agent** — install/uninstall launchd watch agent
 
 Setup: Raycast → Settings → Extensions → Script Commands → **Add Directory** → point to `raycast/`. See [raycast/README.md](raycast/README.md) for details.
+
+A Homebrew install ships these too, so there is no need to clone the repo:
+
+```bash
+open "$(brew --prefix vmt)/share/vmt/raycast"    # the directory to add in Raycast
+```
+
+The path is a stable symlink, so it keeps working across `brew upgrade`.
 
 ## Data source
 

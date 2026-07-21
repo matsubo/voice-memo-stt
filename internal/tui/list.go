@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -13,6 +12,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/matsubo/voice-memo-stt/internal/config"
+	"github.com/matsubo/voice-memo-stt/internal/formatter"
 	"github.com/matsubo/voice-memo-stt/internal/voicememos"
 )
 
@@ -52,43 +52,20 @@ type listModel struct {
 // hasTranscriptionOutput returns true if any configured output format exists
 // for the given recording in outputDir.
 func hasTranscriptionOutput(recPath, outputDir string, formats []string) bool {
-	if len(formats) == 0 {
-		return false
-	}
-	stem := strings.TrimSuffix(recPath, filepath.Ext(recPath))
 	dir := config.ExpandPath(outputDir)
-	for _, f := range formats {
-		if _, err := os.Stat(filepath.Join(dir, stem+"."+f)); err == nil {
-			return true
-		}
-	}
-	return false
-}
-
-// volumeFormat picks the format whose size reflects how much was actually said:
-// plain text when it is configured, otherwise whatever comes first. Sizing the
-// JSON output instead would mostly measure timestamp metadata.
-func volumeFormat(formats []string) (string, bool) {
-	if len(formats) == 0 {
-		return "", false
-	}
-	for _, f := range formats {
-		if f == "txt" {
-			return "txt", true
-		}
-	}
-	return formats[0], true
+	return len(formatter.ExistingOutputs(dir, recPath, formats)) > 0
 }
 
 // transcriptionChars counts the runes in a recording's transcription. The second
-// return is false when no transcription exists.
+// return is false when no transcription exists. Plain text is preferred as the
+// measure of how much was said; sizing the JSON output instead would mostly
+// measure timestamp metadata.
 func transcriptionChars(recPath, outputDir string, formats []string) (int, bool) {
-	format, ok := volumeFormat(formats)
+	format, ok := formatter.PreferredFormat(formats)
 	if !ok {
 		return 0, false
 	}
-	stem := strings.TrimSuffix(recPath, filepath.Ext(recPath))
-	path := filepath.Join(config.ExpandPath(outputDir), stem+"."+format)
+	path := formatter.OutputPath(config.ExpandPath(outputDir), recPath, format)
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return 0, false

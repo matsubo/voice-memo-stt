@@ -6,6 +6,7 @@ import (
 	"os"
 	"text/tabwriter"
 
+	"github.com/matsubo/voice-memo-stt/internal/listing"
 	"github.com/matsubo/voice-memo-stt/internal/voicememos"
 	"github.com/spf13/cobra"
 )
@@ -22,7 +23,7 @@ var listCmd = &cobra.Command{
 		}
 
 		if listJSON {
-			return json.NewEncoder(os.Stdout).Encode(recs)
+			return json.NewEncoder(os.Stdout).Encode(listing.Build(recs, cfg))
 		}
 
 		w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)

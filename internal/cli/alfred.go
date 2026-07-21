@@ -2,11 +2,10 @@ package cli
 
 import (
 	"os"
-	"path/filepath"
-	"strings"
 
 	"github.com/matsubo/voice-memo-stt/internal/alfred"
 	"github.com/matsubo/voice-memo-stt/internal/config"
+	"github.com/matsubo/voice-memo-stt/internal/formatter"
 	"github.com/matsubo/voice-memo-stt/internal/voicememos"
 	"github.com/spf13/cobra"
 )
@@ -30,12 +29,8 @@ var alfredCmd = &cobra.Command{
 		outDir := config.ExpandPath(cfg.OutputDir)
 		transcribed := map[string]bool{}
 		for _, r := range recs {
-			stem := strings.TrimSuffix(r.Path, filepath.Ext(r.Path))
-			if len(cfg.OutputFormats) > 0 {
-				check := filepath.Join(outDir, stem+"."+cfg.OutputFormats[0])
-				if _, err := os.Stat(check); err == nil {
-					transcribed[r.Path] = true
-				}
+			if len(formatter.ExistingOutputs(outDir, r.Path, cfg.OutputFormats)) > 0 {
+				transcribed[r.Path] = true
 			}
 		}
 

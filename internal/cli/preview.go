@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/matsubo/voice-memo-stt/internal/config"
+	"github.com/matsubo/voice-memo-stt/internal/formatter"
 	"github.com/spf13/cobra"
 )
 
@@ -25,8 +26,7 @@ var previewCmd = &cobra.Command{
 		}
 
 		for _, f := range fmts {
-			path := filepath.Join(outDir, stem+"."+f)
-			data, err := os.ReadFile(path)
+			data, err := os.ReadFile(formatter.OutputPath(outDir, stem, f))
 			if err != nil {
 				continue
 			}

@@ -29,11 +29,19 @@ func AudioDir() string {
 // typically meaning the user has not recorded any memos yet.
 var ErrNoRecordings = fmt.Errorf("no Voice Memos recordings found — record at least one memo in the Voice Memos app, then try again")
 
+// ErrAccessDenied is returned when the database exists but cannot be read.
+// On macOS this is almost always TCC: the Voice Memos container is protected,
+// and only apps granted Full Disk Access may read it. The grant is per calling
+// app, so vmt works from a Terminal that has it and fails from a launcher
+// (Raycast, Alfred, a launchd agent) that does not.
+var ErrAccessDenied = fmt.Errorf("macOS denied access to the Voice Memos database — grant Full Disk Access to the app running vmt (Terminal, iTerm, Raycast, Alfred, …) in System Settings → Privacy & Security → Full Disk Access, then try again")
+
 // Open opens the Voice Memos SQLite database at path in read-only mode.
-// Returns ErrNoRecordings if the database file does not exist.
+// Returns ErrNoRecordings if the database file does not exist, and
+// ErrAccessDenied if it exists but cannot be read.
 func Open(path string) (*sql.DB, error) {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return nil, ErrNoRecordings
+	if err := checkReadable(path); err != nil {
+		return nil, err
 	}
 	db, err := sql.Open("sqlite", "file:"+path+"?mode=ro")
 	if err != nil {
@@ -44,6 +52,32 @@ func Open(path string) (*sql.DB, error) {
 		return nil, fmt.Errorf("open Voice Memos DB at %q: %w", path, err)
 	}
 	return db, nil
+}
+
+// checkReadable classifies the file before sqlite gets a chance to: a denied
+// read comes back from the driver as "unable to open database file: out of
+// memory (14)", which sends users looking for a memory problem they do not have.
+//
+// Opening the file is what settles it. TCC lets a protected path be stat'ed and
+// blocks the read, so a successful Stat proves nothing on its own.
+func checkReadable(path string) error {
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			return ErrNoRecordings
+		}
+		if os.IsPermission(err) {
+			return fmt.Errorf("%w (%q)", ErrAccessDenied, path)
+		}
+		return fmt.Errorf("open Voice Memos DB at %q: %w", path, err)
+	}
+	f, err := os.Open(path)
+	if err != nil {
+		if os.IsPermission(err) {
+			return fmt.Errorf("%w (%q)", ErrAccessDenied, path)
+		}
+		return fmt.Errorf("open Voice Memos DB at %q: %w", path, err)
+	}
+	return f.Close()
 }
 
 // List returns all recordings ordered by date descending (most recent first).

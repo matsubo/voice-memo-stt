@@ -14,6 +14,10 @@ var cfg config.Config
 var rootCmd = &cobra.Command{
 	Use:   "vmt",
 	Short: "Voice Memos transcription tool",
+	// A command that fails at runtime is not a usage mistake, and burying the
+	// error under a flag listing is how a Raycast panel ends up showing help
+	// text instead of what went wrong.
+	SilenceUsage: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		var err error
 		cfg, err = config.Load(cfgPath)

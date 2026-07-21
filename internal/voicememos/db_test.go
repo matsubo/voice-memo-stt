@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -180,6 +181,38 @@ func TestOpen_MissingFile(t *testing.T) {
 	}
 	if !errors.Is(err, voicememos.ErrNoRecordings) {
 		t.Errorf("expected ErrNoRecordings, got %v", err)
+	}
+}
+
+// TestOpen_UnreadableFileIsActionable covers the macOS TCC case: the database
+// file is visible but the process is not allowed to read it. sqlite reports that
+// as "unable to open database file: out of memory (14)", which tells the user
+// nothing about the permission they actually have to grant.
+func TestOpen_UnreadableFileIsActionable(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root bypasses file permissions")
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "CloudRecordings.db")
+	if err := os.WriteFile(path, []byte("not really a db"), 0000); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := voicememos.Open(path)
+	if err == nil {
+		t.Fatal("expected an error for an unreadable database")
+	}
+	if errors.Is(err, voicememos.ErrNoRecordings) {
+		t.Fatal("an unreadable database is not the same as a missing one")
+	}
+	if !errors.Is(err, voicememos.ErrAccessDenied) {
+		t.Errorf("expected ErrAccessDenied, got %v", err)
+	}
+	if !strings.Contains(err.Error(), "Full Disk Access") {
+		t.Errorf("the error must name the permission to grant, got: %v", err)
+	}
+	if strings.Contains(err.Error(), "out of memory") {
+		t.Errorf("sqlite's misleading wording must not reach the user, got: %v", err)
 	}
 }
 

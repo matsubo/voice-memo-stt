@@ -333,6 +333,23 @@ Audio files (`.m4a`) live in the same directory. If the file is missing, `vmt` r
 
 **The DB is opened in read-only mode.** `vmt` never writes to Voice Memos data.
 
+### Full Disk Access
+
+That directory is TCC-protected, so macOS only lets apps with **Full Disk
+Access** read it. The grant is per calling app, not per binary: `vmt` works from
+a Terminal that has it and fails when launched from one that does not — Raycast,
+Alfred, or a launchd agent.
+
+```
+System Settings → Privacy & Security → Full Disk Access → add the app, then relaunch it
+```
+
+Without the grant, `vmt` reports:
+
+```
+Error: macOS denied access to the Voice Memos database — grant Full Disk Access …
+```
+
 ## Architecture
 
 ```

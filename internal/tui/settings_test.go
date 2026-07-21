@@ -57,6 +57,39 @@ func TestSettings_ToggleDiarize(t *testing.T) {
 	}
 }
 
+func TestSettings_ToggleBeep(t *testing.T) {
+	cfg := baseCfg()
+	cfg.BeepOnComplete = false
+	m := cursorOn(t, newSettingsModel(cfg), "Beep")
+
+	updated, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{' '}})
+	if !changedCfg(t, cmd).BeepOnComplete {
+		t.Error("space on Beep should turn the completion beep on")
+	}
+	if !updated.(settingsModel).cfg.BeepOnComplete {
+		t.Error("the settings model must hold the flipped value")
+	}
+}
+
+func TestSettings_BeepIsIndependentOfDiarize(t *testing.T) {
+	cfg := baseCfg()
+	cfg.Diarize = true
+	cfg.BeepOnComplete = false
+
+	m := cursorOn(t, newSettingsModel(cfg), "Beep")
+	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRight})
+	got := changedCfg(t, cmd)
+	if !got.Diarize {
+		t.Error("toggling Beep must not touch Diarize")
+	}
+
+	m2 := cursorOn(t, newSettingsModel(cfg), "Diarize")
+	_, cmd2 := m2.Update(tea.KeyMsg{Type: tea.KeyRight})
+	if changedCfg(t, cmd2).BeepOnComplete {
+		t.Error("toggling Diarize must not touch Beep")
+	}
+}
+
 func TestSettings_CycleModel(t *testing.T) {
 	m := cursorOn(t, newSettingsModel(baseCfg()), "Model")
 

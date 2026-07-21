@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
@@ -132,6 +133,52 @@ func TestTranscribeDone_SuccessSetsStatus(t *testing.T) {
 	}
 	if !strings.Contains(got.statusMsg, "Meeting") {
 		t.Errorf("statusMsg: got %q, want the title of the finished job", got.statusMsg)
+	}
+}
+
+func TestTranscribeDone_BeepsWhenEnabled(t *testing.T) {
+	var buf bytes.Buffer
+	cfg := config.Defaults()
+	cfg.BeepOnComplete = true
+	m := model{cfg: cfg, bell: &buf, running: map[string]bool{"a.m4a": true}}
+
+	_, cmd := m.Update(transcribeDoneMsg{path: "a.m4a", title: "Meeting"})
+	if cmd == nil {
+		t.Fatal("a finished job should ring the bell when the beep is enabled")
+	}
+	cmd()
+	if buf.String() != "\a" {
+		t.Errorf("bell output: got %q, want the BEL character", buf.String())
+	}
+}
+
+func TestTranscribeDone_BeepsOnFailureToo(t *testing.T) {
+	// A failed job needs attention more than a successful one, so it beeps too.
+	var buf bytes.Buffer
+	cfg := config.Defaults()
+	cfg.BeepOnComplete = true
+	m := model{cfg: cfg, bell: &buf, running: map[string]bool{"a.m4a": true}}
+
+	_, cmd := m.Update(transcribeDoneMsg{path: "a.m4a", title: "Meeting", err: errMissingKey})
+	if cmd == nil {
+		t.Fatal("a failed job should ring the bell too")
+	}
+	cmd()
+	if buf.String() != "\a" {
+		t.Errorf("bell output: got %q, want the BEL character", buf.String())
+	}
+}
+
+func TestTranscribeDone_SilentByDefault(t *testing.T) {
+	var buf bytes.Buffer
+	m := model{cfg: config.Defaults(), bell: &buf, running: map[string]bool{"a.m4a": true}}
+
+	_, cmd := m.Update(transcribeDoneMsg{path: "a.m4a", title: "Meeting"})
+	if cmd != nil {
+		cmd()
+	}
+	if buf.Len() != 0 {
+		t.Errorf("the beep is opt-in; got %q", buf.String())
 	}
 }
 

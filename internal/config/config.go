@@ -18,13 +18,14 @@ type EnginesConfig struct {
 }
 
 type Config struct {
-	Engine        string        `json:"engine"`
-	OutputFormats []string      `json:"output_formats"`
-	OutputDir     string        `json:"output_dir"`
-	LanguageCode  string        `json:"language_code"`
-	Diarize       bool          `json:"diarize"`
-	Editor        string        `json:"editor"`
-	Engines       EnginesConfig `json:"engines"`
+	Engine         string        `json:"engine"`
+	OutputFormats  []string      `json:"output_formats"`
+	OutputDir      string        `json:"output_dir"`
+	LanguageCode   string        `json:"language_code"`
+	Diarize        bool          `json:"diarize"`
+	Editor         string        `json:"editor"`
+	BeepOnComplete bool          `json:"beep_on_complete"`
+	Engines        EnginesConfig `json:"engines"`
 }
 
 // ResolveEditor returns the command that opens a transcription for editing,
@@ -52,6 +53,8 @@ func Defaults() Config {
 		OutputDir:     "~/Downloads/voice-memo-transcription",
 		LanguageCode:  "", // empty → ElevenLabs auto-detects the language
 		Diarize:       true,
+		// Off by default: a beep is unwelcome unless it was asked for.
+		BeepOnComplete: false,
 		Engines: EnginesConfig{
 			ElevenLabs: ElevenLabsConfig{
 				Model: "scribe_v2",

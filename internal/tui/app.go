@@ -3,6 +3,7 @@ package tui
 import (
 	"context"
 	"fmt"
+	"io"
 	"path/filepath"
 	"strings"
 
@@ -43,6 +44,7 @@ type model struct {
 	statusIsErr bool
 	width       int // last known terminal size
 	height      int
+	bell        io.Writer // where the completion beep is written (nil → stderr)
 }
 
 // Run starts the bubbletea TUI program with alt-screen. cfgPath is where the
@@ -291,6 +293,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		// Re-read the outputs so the ✓ mark and char count appear.
 		m = m.rebuildList()
+		// The point of the beep is to call the user back to a job they left
+		// running, so a failure rings too — it needs attention more, not less.
+		if m.cfg.BeepOnComplete {
+			return m, bellCmd(m.bell)
+		}
 		return m, nil
 	}
 

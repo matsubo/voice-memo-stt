@@ -51,6 +51,8 @@ var configSetCmd = &cobra.Command{
 			cfg.Diarize = value == "true"
 		case "editor":
 			cfg.Editor = value
+		case "beep_on_complete":
+			cfg.BeepOnComplete = value == "true"
 		case "engines.elevenlabs.api_key":
 			cfg.Engines.ElevenLabs.APIKey = value
 		case "engines.elevenlabs.model":

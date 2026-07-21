@@ -66,6 +66,7 @@ func newSettingsModel(cfg config.Config) settingsModel {
 		{label: "Diarize", kind: rowBool},
 		{label: "API Key", kind: rowText, masked: true},
 		{label: "Output Dir", kind: rowDisplay},
+		{label: "Beep", kind: rowBool},
 	}
 	for _, f := range formatter.SupportedFormats {
 		rows = append(rows, settingsRow{label: f, kind: rowFormat, format: f})
@@ -127,7 +128,7 @@ func (m settingsModel) editRow(row settingsRow, key tea.KeyMsg) (tea.Model, tea.
 	case rowBool:
 		switch key.String() {
 		case "left", "right", "enter", " ":
-			m.cfg.Diarize = !m.cfg.Diarize
+			m.cfg = toggleBool(m.cfg, row.label)
 			return m, m.changed()
 		}
 	case rowFormat:
@@ -185,7 +186,7 @@ func (m settingsModel) displayValue(row settingsRow) string {
 	case rowLang:
 		return "< " + languageDisplay(m.cfg.LanguageCode) + " >"
 	case rowBool:
-		return fmt.Sprintf("< %v >", m.cfg.Diarize)
+		return fmt.Sprintf("< %v >", boolValue(m.cfg, row.label))
 	case rowFormat:
 		mark := " "
 		if formatEnabled(m.cfg.OutputFormats, row.format) {
@@ -251,6 +252,28 @@ func (m settingsModel) helpLine() string {
 }
 
 // --- helpers ---
+
+// boolValue reads the flag a rowBool row stands for.
+func boolValue(cfg config.Config, label string) bool {
+	switch label {
+	case "Diarize":
+		return cfg.Diarize
+	case "Beep":
+		return cfg.BeepOnComplete
+	}
+	return false
+}
+
+// toggleBool returns a copy of cfg with the flag named by label flipped.
+func toggleBool(cfg config.Config, label string) config.Config {
+	switch label {
+	case "Diarize":
+		cfg.Diarize = !cfg.Diarize
+	case "Beep":
+		cfg.BeepOnComplete = !cfg.BeepOnComplete
+	}
+	return cfg
+}
 
 func currentModel(cfg config.Config) string {
 	if cfg.Engines.ElevenLabs.Model == "" {

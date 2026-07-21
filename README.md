@@ -88,6 +88,7 @@ Settings
   Diarize      < true >
   API Key      sk-a***wxyz
   Output Dir   ~/Downloads/voice-memo-transcription
+  Beep         < false >
                [x] txt
                [ ] md
                [x] json
@@ -98,9 +99,15 @@ Settings
 ```
 
 Every edit is written to `config.json` right away. `←/→` cycles the model,
-language, and diarization, `space` checks a format on or off, and `enter` opens a
-text field for the API key. The engine is fixed to ElevenLabs. The API key is
-masked on screen (stored in `config.json` with `0600` permissions).
+language, diarization, and the beep, `space` checks a format on or off, and
+`enter` opens a text field for the API key. The engine is fixed to ElevenLabs.
+The API key is masked on screen (stored in `config.json` with `0600`
+permissions).
+
+`Beep` rings the terminal bell when a background transcription finishes, so you
+can start a long job and walk away. It is **off by default**, and it rings for
+failures as well as successes. Whether the bell is audible, visual, or silent is
+your terminal's setting (Terminal.app: Settings → Profiles → Advanced → Bell).
 
 ElevenLabs Scribe is multilingual. `Language` cycles a short list of common
 languages plus `auto` (auto-detect); the settings default is `auto`. Scribe
@@ -134,6 +141,7 @@ Team standup          2026-04-05 10:00  30m34s    20260405_100000.m4a
 - **Editable settings** — change the ElevenLabs model, output formats, language, diarization, and API key from the `s` screen; every change is saved to `config.json` immediately
 - **Edit transcriptions in place** — open the output in `$EDITOR` (nvim, …) from the preview and correct it
 - **Background transcription** — jobs run concurrently while you keep using the list, with per-recording status and a running-job count
+- **Completion beep** (opt-in) — ring the terminal bell when a background job finishes
 - **Alfred Script Filter** — see [alfred-workflow/](alfred-workflow/)
 - **Raycast Script Commands** — see [raycast/](raycast/)
 - **File watcher** — auto-transcribe new recordings (foreground or launchd agent)
@@ -208,7 +216,7 @@ vmt watch --uninstall          # remove launchd agent
 | list     | `↑/↓` navigate • `enter` transcribe • `p` preview • `s` settings • `q` quit |
 | confirm  | `y` confirm • `n`/`esc` cancel                                 |
 | preview  | `↑/↓` scroll • `←/→` switch format • `c` copy to clipboard (pbcopy) • `e` edit in `$EDITOR` • `esc` back |
-| settings | `↑/↓` navigate • `←/→` change model/language/diarize • `space` toggle a format • `enter` edit API key • `esc` back |
+| settings | `↑/↓` navigate • `←/→` change model/language/diarize/beep • `space` toggle a format • `enter` edit API key • `esc` back |
 
 The leftmost column of the list is a status column:
 
@@ -238,6 +246,7 @@ many would be lost.
   "language_code": "",
   "diarize": true,
   "editor": "nvim",
+  "beep_on_complete": false,
   "engines": {
     "elevenlabs": {
       "api_key": "sk-...",
@@ -254,6 +263,7 @@ many would be lost.
 | `output_dir` | `VMT_OUTPUT_DIR` | `~/Downloads/voice-memo-transcription` |
 | `language_code` | `VMT_LANGUAGE` | (empty → auto-detect) |
 | `editor` | `VMT_EDITOR` | `$VISUAL`, then `$EDITOR`, then `vi` |
+| `beep_on_complete` | — | `false` |
 
 ElevenLabs models:
 

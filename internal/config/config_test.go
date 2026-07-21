@@ -22,6 +22,9 @@ func TestDefaults(t *testing.T) {
 	if cfg.LanguageCode != "" {
 		t.Errorf("LanguageCode default: got %q, want empty (auto-detect)", cfg.LanguageCode)
 	}
+	if cfg.BeepOnComplete {
+		t.Error("BeepOnComplete default: got true, want false — the beep is opt-in")
+	}
 }
 
 func TestLoadMissing(t *testing.T) {
@@ -41,6 +44,7 @@ func TestSaveAndLoad(t *testing.T) {
 	original := config.Defaults()
 	original.Engine = "whisper"
 	original.LanguageCode = "eng"
+	original.BeepOnComplete = true
 
 	if err := config.Save(path, original); err != nil {
 		t.Fatalf("Save: %v", err)
@@ -55,6 +59,9 @@ func TestSaveAndLoad(t *testing.T) {
 	}
 	if loaded.LanguageCode != "eng" {
 		t.Errorf("LanguageCode: got %q", loaded.LanguageCode)
+	}
+	if !loaded.BeepOnComplete {
+		t.Error("BeepOnComplete should survive a save/load round trip")
 	}
 }
 

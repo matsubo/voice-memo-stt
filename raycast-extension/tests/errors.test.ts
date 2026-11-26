@@ -3,8 +3,8 @@ import { describeFailure, stderrMessage, VmtError } from "../src/errors";
 
 describe("stderrMessage", () => {
   test("picks the reported error out of surrounding output", () => {
-    const stderr = ["Error: no transcription found for \"a.m4a\"", "", "Usage:", "  vmt preview <file>"].join("\n");
-    expect(stderrMessage(stderr)).toBe('no transcription found for "a.m4a"');
+    const stderr = ["Error: no transcript found for \"a.m4a\"", "", "Usage:", "  vmt preview <recording>"].join("\n");
+    expect(stderrMessage(stderr)).toBe('no transcript found for "a.m4a"');
   });
 
   test("falls back to the first non-empty line", () => {

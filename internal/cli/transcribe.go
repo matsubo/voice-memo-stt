@@ -22,7 +22,7 @@ var (
 )
 
 var transcribeCmd = &cobra.Command{
-	Use:   "transcribe [file]",
+	Use:   "transcribe [recording]",
 	Short: "Transcribe a Voice Memos recording",
 	Args:  cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -40,7 +40,7 @@ var transcribeCmd = &cobra.Command{
 			return transcribeAllPending(cmd.Context(), recs, eng, cfg)
 		}
 		if len(args) == 0 {
-			return fmt.Errorf("provide a filename or use --all")
+			return fmt.Errorf("provide a recording or use --all")
 		}
 		return transcribeOne(cmd.Context(), recs, eng, cfg, args[0])
 	},

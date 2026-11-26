@@ -17,7 +17,7 @@ export function TranscriptionDetail({ recording }: { recording: Recording }) {
       .then((text) => setMarkdown(asMarkdown(text, output.format)))
       .catch(async (error: Error) => {
         setMarkdown("");
-        await showToast({ style: Toast.Style.Failure, title: "Cannot read transcription", message: error.message });
+        await showToast({ style: Toast.Style.Failure, title: "Cannot read transcript", message: error.message });
       });
   }, [output?.path]);
 
@@ -39,7 +39,7 @@ export function TranscriptionDetail({ recording }: { recording: Recording }) {
       }
       actions={
         <ActionPanel>
-          {markdown ? <Action.CopyToClipboard title="Copy Transcription" content={markdown} /> : null}
+          {markdown ? <Action.CopyToClipboard title="Copy Transcript" content={markdown} /> : null}
           {output ? <Action.Open title="Open in Default App" target={output.path} icon={Icon.Pencil} /> : null}
           {output ? <Action.OpenWith title="Open with…" path={output.path} /> : null}
           {output ? <Action.ShowInFinder title="Show in Finder" path={output.path} /> : null}

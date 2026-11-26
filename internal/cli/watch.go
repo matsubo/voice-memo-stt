@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/matsubo/voice-memo-stt/internal/config"
 	"github.com/matsubo/voice-memo-stt/internal/engine"
+	"github.com/matsubo/voice-memo-stt/internal/engine/catalog"
 	"github.com/matsubo/voice-memo-stt/internal/formatter"
 	"github.com/matsubo/voice-memo-stt/internal/voicememos"
 	"github.com/matsubo/voice-memo-stt/internal/watcher"
@@ -47,17 +49,34 @@ var watchCmd = &cobra.Command{
 			return nil
 		}
 
-		eng, err := buildEngine(cfg)
+		eng, err := catalog.Build(cfg)
 		if err != nil {
 			return err
 		}
 		dir := voicememos.AudioDir()
 
 		fmt.Printf("Watching %s for new recordings...\n", dir)
-		return watcher.Watch(cmd.Context(), dir, func(ctx context.Context, audioPath string) error {
-			return runTranscription(ctx, eng, audioPath, cfg)
-		})
+		return watcher.Watch(cmd.Context(), dir, watchHandler(eng, cfg, notifyComplete))
 	},
+}
+
+// watchHandler returns what Watch runs for each settled audio file. Watch only
+// ever transcribes a Pending recording: a write to a Transcribed one (a trim in
+// Voice Memos, an iCloud re-sync) would otherwise bill again and overwrite its
+// outputs, edits included, without anyone asking for it.
+func watchHandler(eng engine.Engine, cfg config.Config, notify func(recPath string)) func(context.Context, string) error {
+	return func(ctx context.Context, audioPath string) error {
+		recPath := filepath.Base(audioPath)
+		if formatter.Transcribed(config.ExpandPath(cfg.OutputDir), recPath, cfg.OutputFormats) {
+			log.Printf("Skipping %s: already transcribed", recPath)
+			return nil
+		}
+		if err := runTranscription(ctx, eng, audioPath, cfg); err != nil {
+			return err
+		}
+		notify(recPath)
+		return nil
+	}
 }
 
 func runTranscription(ctx context.Context, eng engine.Engine, audioPath string, cfg config.Config) error {
@@ -72,17 +91,18 @@ func runTranscription(ctx context.Context, eng engine.Engine, audioPath string, 
 	fmtCtx := formatter.Context{
 		File:     filepath.Base(audioPath),
 		Engine:   eng.Name(),
-		Model:    cfg.Engines.ElevenLabs.Model,
+		Model:    eng.Model().ID,
 		Segments: result.Segments,
 	}
-	if err := formatter.Write(outDir, fmtCtx, cfg.OutputFormats); err != nil {
-		return err
-	}
-	title := strings.ReplaceAll(filepath.Base(audioPath), `"`, "")
+	return formatter.Write(outDir, fmtCtx, cfg.OutputFormats)
+}
+
+// notifyComplete posts a macOS notification for a finished transcription.
+func notifyComplete(recPath string) {
+	title := strings.ReplaceAll(recPath, `"`, "")
 	_ = exec.Command("osascript", "-e",
 		fmt.Sprintf(`display notification "Transcription complete: %s" with title "vmt"`, title),
 	).Run()
-	return nil
 }
 
 func init() {

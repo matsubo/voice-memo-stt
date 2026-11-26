@@ -57,7 +57,7 @@ func Defaults() Config {
 		BeepOnComplete: false,
 		Engines: EnginesConfig{
 			ElevenLabs: ElevenLabsConfig{
-				Model: "scribe_v2",
+				Model: "scribe_v3",
 			},
 		},
 	}

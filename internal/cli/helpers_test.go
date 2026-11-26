@@ -63,8 +63,8 @@ func TestStripExt(t *testing.T) {
 // prove a guarded run never reached (and never billed) the Engine.
 type countingEngine struct{ calls int }
 
-func (e *countingEngine) Name() string                         { return "counting" }
-func (e *countingEngine) EstimateCost(seconds float64) float64 { return 0 }
+func (e *countingEngine) Name() string        { return "counting" }
+func (e *countingEngine) Model() engine.Model { return engine.Model{ID: "counting-1"} }
 func (e *countingEngine) Transcribe(context.Context, string, engine.TranscribeOptions) (*engine.TranscribeResult, error) {
 	e.calls++
 	return &engine.TranscribeResult{}, nil
@@ -123,23 +123,42 @@ func TestTranscribeOne_PendingNeedsNoOverwrite(t *testing.T) {
 	}
 }
 
-func TestBuildEngine_MissingKey(t *testing.T) {
-	cfg := config.Config{}
-	_, err := buildEngine(cfg)
-	if err == nil {
-		t.Error("expected error for missing API key")
+func TestWatchHandler_SkipsTranscribed(t *testing.T) {
+	dir := t.TempDir()
+	edited := filepath.Join(dir, "rec.txt")
+	if err := os.WriteFile(edited, []byte("edited by hand"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Config{OutputDir: dir, OutputFormats: []string{"txt"}}
+	eng := &countingEngine{}
+	notified := 0
+
+	handle := watchHandler(eng, cfg, func(string) { notified++ })
+	if err := handle(context.Background(), "/voice-memos/rec.m4a"); err != nil {
+		t.Fatal(err)
+	}
+	if eng.calls != 0 || notified != 0 {
+		t.Errorf("a transcribed recording must be skipped, got %d Engine calls, %d notifications", eng.calls, notified)
+	}
+	if data, _ := os.ReadFile(edited); string(data) != "edited by hand" {
+		t.Errorf("the edited output must survive, got %q", data)
 	}
 }
 
-func TestBuildEngine_WithKey(t *testing.T) {
-	cfg := config.Config{}
-	cfg.Engines.ElevenLabs.APIKey = "test-key"
-	cfg.Engines.ElevenLabs.Model = "scribe_v2"
-	eng, err := buildEngine(cfg)
-	if err != nil {
-		t.Fatalf("buildEngine: %v", err)
+func TestWatchHandler_TranscribesPending(t *testing.T) {
+	dir := t.TempDir()
+	cfg := config.Config{OutputDir: dir, OutputFormats: []string{"txt"}}
+	eng := &countingEngine{}
+	notified := 0
+
+	handle := watchHandler(eng, cfg, func(string) { notified++ })
+	if err := handle(context.Background(), "/voice-memos/new.m4a"); err != nil {
+		t.Fatal(err)
 	}
-	if eng.Name() != "elevenlabs" {
-		t.Errorf("engine Name: got %q", eng.Name())
+	if eng.calls != 1 || notified != 1 {
+		t.Errorf("a pending recording must be transcribed once and notified, got %d calls, %d notifications", eng.calls, notified)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "new.txt")); err != nil {
+		t.Errorf("the output must be written: %v", err)
 	}
 }

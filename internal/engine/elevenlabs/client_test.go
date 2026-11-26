@@ -48,7 +48,7 @@ func TestTranscribe_Diarize(t *testing.T) {
 	srv := startFakeServer(t)
 	defer srv.Close()
 
-	client := elevenlabs.New("test-key", "scribe_v2", elevenlabs.WithBaseURL(srv.URL))
+	client := elevenlabs.New("test-key", elevenlabs.Models[0], elevenlabs.WithBaseURL(srv.URL))
 	audioPath := writeTempAudio(t)
 
 	result, err := client.Transcribe(context.Background(), audioPath, engine.TranscribeOptions{
@@ -76,7 +76,7 @@ func TestTranscribe_NoDiarize(t *testing.T) {
 	srv := startFakeServer(t)
 	defer srv.Close()
 
-	client := elevenlabs.New("test-key", "scribe_v2", elevenlabs.WithBaseURL(srv.URL))
+	client := elevenlabs.New("test-key", elevenlabs.Models[0], elevenlabs.WithBaseURL(srv.URL))
 	result, err := client.Transcribe(context.Background(), writeTempAudio(t), engine.TranscribeOptions{Diarize: false})
 	if err != nil {
 		t.Fatal(err)
@@ -91,23 +91,29 @@ func TestTranscribe_NoDiarize(t *testing.T) {
 }
 
 func TestName(t *testing.T) {
-	c := elevenlabs.New("key", "scribe_v2")
+	c := elevenlabs.New("key", elevenlabs.Models[0])
 	if c.Name() != "elevenlabs" {
 		t.Errorf("Name: got %q", c.Name())
 	}
 }
 
-func TestEstimateCost(t *testing.T) {
-	c := elevenlabs.New("key", "scribe_v2")
-	cost := c.EstimateCost(3600) // 1 hour
-	if cost != 0.22 {
-		t.Errorf("scribe_v2 cost/hour: got %f, want 0.22", cost)
-	}
+// The Model the user picked must be the one the API is asked to use.
+func TestTranscribe_SendsSelectedModel(t *testing.T) {
+	var gotModel string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotModel = r.FormValue("model_id")
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(fakeAPIResponse())
+	}))
+	defer srv.Close()
 
-	c2 := elevenlabs.New("key", "scribe_v1")
-	cost2 := c2.EstimateCost(3600)
-	if cost2 != 0.40 {
-		t.Errorf("scribe_v1 cost/hour: got %f, want 0.40", cost2)
+	medical := engine.Model{ID: "scribe_v2_medical", PricePerHour: 0.20}
+	client := elevenlabs.New("test-key", medical, elevenlabs.WithBaseURL(srv.URL))
+	if _, err := client.Transcribe(context.Background(), writeTempAudio(t), engine.TranscribeOptions{}); err != nil {
+		t.Fatal(err)
+	}
+	if gotModel != "scribe_v2_medical" {
+		t.Errorf("model_id sent: got %q, want scribe_v2_medical", gotModel)
 	}
 }
 
@@ -117,7 +123,7 @@ func TestTranscribe_APIError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	client := elevenlabs.New("test-key", "scribe_v2", elevenlabs.WithBaseURL(srv.URL))
+	client := elevenlabs.New("test-key", elevenlabs.Models[0], elevenlabs.WithBaseURL(srv.URL))
 	_, err := client.Transcribe(context.Background(), writeTempAudio(t), engine.TranscribeOptions{})
 	if err == nil {
 		t.Error("expected error from API 429")

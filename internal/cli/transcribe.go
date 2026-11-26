@@ -10,7 +10,7 @@ import (
 
 	"github.com/matsubo/voice-memo-stt/internal/config"
 	"github.com/matsubo/voice-memo-stt/internal/engine"
-	"github.com/matsubo/voice-memo-stt/internal/engine/elevenlabs"
+	"github.com/matsubo/voice-memo-stt/internal/engine/catalog"
 	"github.com/matsubo/voice-memo-stt/internal/formatter"
 	"github.com/matsubo/voice-memo-stt/internal/voicememos"
 	"github.com/spf13/cobra"
@@ -32,7 +32,7 @@ var transcribeCmd = &cobra.Command{
 			return err
 		}
 
-		eng, err := buildEngine(cfg)
+		eng, err := catalog.Build(cfg)
 		if err != nil {
 			return err
 		}
@@ -45,14 +45,6 @@ var transcribeCmd = &cobra.Command{
 		}
 		return transcribeOne(cmd.Context(), recs, eng, cfg, args[0])
 	},
-}
-
-func buildEngine(cfg config.Config) (engine.Engine, error) {
-	apiKey := cfg.Engines.ElevenLabs.APIKey
-	if apiKey == "" {
-		return nil, fmt.Errorf("ElevenLabs API key not configured.\n\nSet via:\n  export ELEVENLABS_API_KEY=sk-...\nor:\n  vmt config set engines.elevenlabs.api_key sk-...")
-	}
-	return elevenlabs.New(apiKey, cfg.Engines.ElevenLabs.Model), nil
 }
 
 func normalizePath(filename string) string {
@@ -79,7 +71,7 @@ func transcribeOne(ctx context.Context, recs []voicememos.Recording, eng engine.
 	}
 
 	audioPath := filepath.Join(voicememos.AudioDir(), rec.Path)
-	cost := eng.EstimateCost(rec.Duration)
+	cost := eng.Model().EstimateCost(rec.Duration)
 
 	fmt.Printf("Recording: %s\n", rec.Title)
 	fmt.Printf("Duration:  %s\n", rec.DurationFormatted())
@@ -113,7 +105,7 @@ func transcribeOne(ctx context.Context, recs []voicememos.Recording, eng engine.
 		RecordedAt: rec.Date,
 		Duration:   rec.Duration,
 		Engine:     eng.Name(),
-		Model:      cfg.Engines.ElevenLabs.Model,
+		Model:      eng.Model().ID,
 		Segments:   result.Segments,
 	}
 	if err := formatter.Write(outDir, fmtCtx, cfg.OutputFormats); err != nil {
@@ -136,7 +128,7 @@ func transcribeAllPending(ctx context.Context, recs []voicememos.Recording, eng 
 		}
 		pending = append(pending, r)
 		totalDur += r.Duration
-		totalCost += eng.EstimateCost(r.Duration)
+		totalCost += eng.Model().EstimateCost(r.Duration)
 	}
 
 	if len(pending) == 0 {
@@ -177,7 +169,7 @@ func transcribeAllPending(ctx context.Context, recs []voicememos.Recording, eng 
 			RecordedAt: r.Date,
 			Duration:   r.Duration,
 			Engine:     eng.Name(),
-			Model:      cfg.Engines.ElevenLabs.Model,
+			Model:      eng.Model().ID,
 			Segments:   result.Segments,
 		}
 		if err := formatter.Write(outDir, fmtCtx, cfg.OutputFormats); err != nil {

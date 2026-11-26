@@ -11,7 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/matsubo/voice-memo-stt/internal/config"
 	"github.com/matsubo/voice-memo-stt/internal/engine"
-	"github.com/matsubo/voice-memo-stt/internal/engine/elevenlabs"
+	"github.com/matsubo/voice-memo-stt/internal/engine/catalog"
 	"github.com/matsubo/voice-memo-stt/internal/formatter"
 	"github.com/matsubo/voice-memo-stt/internal/voicememos"
 )
@@ -79,7 +79,11 @@ func transcribeCmd(cfg config.Config, rec voicememos.Recording) tea.Cmd {
 			done.err = errMissingKey
 			return done
 		}
-		eng := elevenlabs.New(cfg.Engines.ElevenLabs.APIKey, cfg.Engines.ElevenLabs.Model)
+		eng, err := catalog.Build(cfg)
+		if err != nil {
+			done.err = err
+			return done
+		}
 		audioPath := filepath.Join(voicememos.AudioDir(), rec.Path)
 		result, err := eng.Transcribe(context.Background(), audioPath, engine.TranscribeOptions{
 			LanguageCode: cfg.LanguageCode,
@@ -95,7 +99,7 @@ func transcribeCmd(cfg config.Config, rec voicememos.Recording) tea.Cmd {
 			RecordedAt: rec.Date,
 			Duration:   rec.Duration,
 			Engine:     eng.Name(),
-			Model:      cfg.Engines.ElevenLabs.Model,
+			Model:      eng.Model().ID,
 			Segments:   result.Segments,
 		}
 		if err := formatter.Write(outDir, fmtCtx, cfg.OutputFormats); err != nil {
@@ -207,8 +211,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		m.selected = msg.recording
-		eng := elevenlabs.New(m.cfg.Engines.ElevenLabs.APIKey, m.cfg.Engines.ElevenLabs.Model)
-		cost := eng.EstimateCost(msg.recording.Duration)
+		model, err := catalog.SelectedModel(m.cfg)
+		if err != nil {
+			m.statusMsg = err.Error()
+			m.statusIsErr = true
+			m.screen = screenList
+			return m, nil
+		}
+		cost := model.EstimateCost(msg.recording.Duration)
 		overwrite := hasTranscriptionOutput(msg.recording.Path, m.cfg.OutputDir, m.cfg.OutputFormats)
 		m.confirm = newConfirmModel(msg.recording, cost, overwrite)
 		m.screen = screenConfirm

@@ -63,8 +63,8 @@ func TestStripExt(t *testing.T) {
 // prove a guarded run never reached (and never billed) the Engine.
 type countingEngine struct{ calls int }
 
-func (e *countingEngine) Name() string                         { return "counting" }
-func (e *countingEngine) EstimateCost(seconds float64) float64 { return 0 }
+func (e *countingEngine) Name() string        { return "counting" }
+func (e *countingEngine) Model() engine.Model { return engine.Model{ID: "counting-1"} }
 func (e *countingEngine) Transcribe(context.Context, string, engine.TranscribeOptions) (*engine.TranscribeResult, error) {
 	e.calls++
 	return &engine.TranscribeResult{}, nil
@@ -120,27 +120,6 @@ func TestTranscribeOne_PendingNeedsNoOverwrite(t *testing.T) {
 	}
 	if eng.calls != 1 {
 		t.Errorf("want 1 Engine call, got %d", eng.calls)
-	}
-}
-
-func TestBuildEngine_MissingKey(t *testing.T) {
-	cfg := config.Config{}
-	_, err := buildEngine(cfg)
-	if err == nil {
-		t.Error("expected error for missing API key")
-	}
-}
-
-func TestBuildEngine_WithKey(t *testing.T) {
-	cfg := config.Config{}
-	cfg.Engines.ElevenLabs.APIKey = "test-key"
-	cfg.Engines.ElevenLabs.Model = "scribe_v2"
-	eng, err := buildEngine(cfg)
-	if err != nil {
-		t.Fatalf("buildEngine: %v", err)
-	}
-	if eng.Name() != "elevenlabs" {
-		t.Errorf("engine Name: got %q", eng.Name())
 	}
 }
 

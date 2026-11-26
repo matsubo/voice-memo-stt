@@ -16,8 +16,8 @@ func TestDefaults(t *testing.T) {
 	if len(cfg.OutputFormats) == 0 {
 		t.Error("OutputFormats should not be empty")
 	}
-	if cfg.Engines.ElevenLabs.Model != "scribe_v2" {
-		t.Errorf("ElevenLabs model: got %q", cfg.Engines.ElevenLabs.Model)
+	if cfg.Engines.ElevenLabs.Model != "scribe_v3" {
+		t.Errorf("ElevenLabs model: got %q, want scribe_v3", cfg.Engines.ElevenLabs.Model)
 	}
 	if cfg.LanguageCode != "" {
 		t.Errorf("LanguageCode default: got %q, want empty (auto-detect)", cfg.LanguageCode)

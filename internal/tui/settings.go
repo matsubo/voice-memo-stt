@@ -7,11 +7,19 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/matsubo/voice-memo-stt/internal/config"
+	"github.com/matsubo/voice-memo-stt/internal/engine/catalog"
 	"github.com/matsubo/voice-memo-stt/internal/formatter"
 )
 
-// modelOptions are the ElevenLabs models the user can cycle between.
-var modelOptions = []string{"scribe_v1", "scribe_v2"}
+// modelIDs lists the Models the configured Engine offers, default first.
+func modelIDs(cfg config.Config) []string {
+	models, _ := catalog.Models(cfg.Engine)
+	ids := make([]string, len(models))
+	for i, m := range models {
+		ids[i] = m.ID
+	}
+	return ids
+}
 
 // languageOptions are the languages offered in the settings cycle. The empty
 // code means auto-detect. ElevenLabs accepts ISO-639-1 or -3 codes and supports
@@ -61,7 +69,7 @@ type settingsModel struct {
 func newSettingsModel(cfg config.Config) settingsModel {
 	rows := []settingsRow{
 		{label: "Engine", kind: rowDisplay},
-		{label: "Model", kind: rowChoice, options: modelOptions},
+		{label: "Model", kind: rowChoice, options: modelIDs(cfg)},
 		{label: "Language", kind: rowLang},
 		{label: "Diarize", kind: rowBool},
 		{label: "API Key", kind: rowText, masked: true},
@@ -116,6 +124,9 @@ func (m settingsModel) editRow(row settingsRow, key tea.KeyMsg) (tea.Model, tea.
 	case rowChoice:
 		switch key.String() {
 		case "left", "right", "enter", " ":
+			if len(row.options) == 0 { // unknown engine: nothing to choose from
+				return m, nil
+			}
 			m.cfg.Engines.ElevenLabs.Model = cycle(row.options, currentModel(m.cfg), dir(key))
 			return m, m.changed()
 		}
@@ -275,11 +286,16 @@ func toggleBool(cfg config.Config, label string) config.Config {
 	return cfg
 }
 
+// currentModel is the Model id shown in settings: the configured one, or the
+// Engine's default when none is set.
 func currentModel(cfg config.Config) string {
-	if cfg.Engines.ElevenLabs.Model == "" {
-		return modelOptions[len(modelOptions)-1] // scribe_v2 default
+	if cfg.Engines.ElevenLabs.Model != "" {
+		return cfg.Engines.ElevenLabs.Model
 	}
-	return cfg.Engines.ElevenLabs.Model
+	if m, err := catalog.FindModel(cfg.Engine, ""); err == nil {
+		return m.ID
+	}
+	return ""
 }
 
 // dir maps a key to a cycle direction; unknown keys advance forward.

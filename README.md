@@ -167,7 +167,7 @@ make build
 sudo cp bin/vmt /usr/local/bin/
 ```
 
-Requires Go 1.25+.
+Requires Go 1.27+.
 
 ## Setup
 

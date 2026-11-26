@@ -13,8 +13,8 @@ import (
 var previewFormat string
 
 var previewCmd = &cobra.Command{
-	Use:   "preview <file>",
-	Short: "Display the transcription for a recording",
+	Use:   "preview <recording>",
+	Short: "Display the transcript of a recording",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		outDir := config.ExpandPath(cfg.OutputDir)
@@ -33,7 +33,7 @@ var previewCmd = &cobra.Command{
 			_, werr := os.Stdout.Write(data)
 			return werr
 		}
-		return fmt.Errorf("no transcription found for %q in %s", args[0], outDir)
+		return fmt.Errorf("no transcript found for %q in %s", args[0], outDir)
 	},
 }
 

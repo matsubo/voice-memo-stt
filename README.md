@@ -29,14 +29,14 @@ Transcribe macOS Voice Memos recordings via ElevenLabs Scribe. Single Go binary 
 ✓ done • ✗ failed • ↑/↓ navigate • enter transcribe • p preview • s settings • q quit (confirm)
 ```
 
-Transcriptions run in the background: press `enter`, confirm the cost, and you are
+Transcription jobs run in the background: press `enter`, confirm the cost, and you are
 returned to the list while the job runs. You can keep browsing, open a preview, or
 queue more recordings. The leftmost column tracks each recording's state — blank
 (not transcribed), `⠹` (transcribing), `✓` (done), `✗` (failed) — and the footer
 counts the jobs still in flight.
 
-`Chars` is the size of the transcription: the rune count of the `txt` output (or
-the first configured format when `txt` is not among them).
+`Chars` is the length of the transcript: the rune count of the `txt` output (or
+of the first configured format when `txt` is not among them).
 
 ### Preview screen (`p` on a row)
 
@@ -50,8 +50,8 @@ the first configured format when `txt` is not among them).
 copied! • [txt] ←/→ switch format • c copy • e edit • esc back
 ```
 
-The transcription scrolls with `↑/↓`; the help line stays pinned to the bottom.
-`c` copies the whole transcription to the clipboard and flashes the screen to
+The transcript scrolls with `↑/↓`; the help line stays pinned to the bottom.
+`c` copies the whole transcript to the clipboard and flashes the screen to
 confirm.
 
 `e` opens the format currently on screen in your editor. The TUI steps aside
@@ -104,7 +104,7 @@ language, diarization, and the beep, `space` checks a format on or off, and
 The API key is masked on screen (stored in `config.json` with `0600`
 permissions).
 
-`Beep` rings the terminal bell when a background transcription finishes, so you
+`Beep` rings the terminal bell when a background transcription job finishes, so you
 can start a long job and walk away. It is **off by default**, and it rings for
 failures as well as successes. Whether the bell is audible, visual, or silent is
 your terminal's setting (Terminal.app: Settings → Profiles → Advanced → Bell).
@@ -139,13 +139,13 @@ Team standup          2026-04-05 10:00  30m34s    20260405_100000.m4a
 - **Speaker diarization** (via ElevenLabs `diarize`)
 - **Interactive TUI** (bubbletea) — list, preview, clipboard copy
 - **Editable settings** — change the ElevenLabs model, output formats, language, diarization, and API key from the `s` screen; every change is saved to `config.json` immediately
-- **Edit transcriptions in place** — open the output in `$EDITOR` (nvim, …) from the preview and correct it
-- **Background transcription** — jobs run concurrently while you keep using the list, with per-recording status and a running-job count
+- **Edit transcripts in place** — open an output in `$EDITOR` (nvim, …) from the preview and correct it
+- **Background transcription jobs** — jobs run concurrently while you keep using the list, with per-recording status and a running-job count
 - **Completion beep** (opt-in) — ring the terminal bell when a background job finishes
 - **Alfred Script Filter** — see [alfred-workflow/](alfred-workflow/)
 - **Raycast extension** — searchable list with a ⌘K action panel, see [raycast-extension/](raycast-extension/)
 - **File watcher** — auto-transcribe new recordings (foreground or launchd agent)
-- **Cost estimation** before transcription
+- **Cost estimate** before each transcription job
 
 ## Install
 
@@ -196,10 +196,10 @@ Precedence: env var > config file > default.
 ```bash
 vmt list                       # list recordings
 vmt list --json                # machine-readable
-vmt transcribe <file>          # transcribe one (with cost confirmation)
+vmt transcribe <recording>     # transcribe one (with cost confirmation)
 vmt transcribe --all --yes     # batch, skip prompts
-vmt preview <file>             # print transcription (uses first enabled format)
-vmt preview <file> --format md # specific format
+vmt preview <recording>        # print the transcript (first enabled format with an output)
+vmt preview <recording> --format md # specific format
 vmt config                     # show config (API key masked)
 vmt config set <key> <value>   # update config
 vmt alfred [query]             # Alfred Script Filter JSON
@@ -222,10 +222,10 @@ The leftmost column of the list is a status column:
 
 | Mark | Meaning                                                           |
 |------|-------------------------------------------------------------------|
-| (blank) | Not transcribed — no output file in your configured `output_dir` |
+| (blank) | Pending — no output file in your configured `output_dir` |
 | `⠹`  | Transcribing in the background                                    |
 | `✓`  | Transcribed — at least one output file exists                     |
-| `✗`  | The last transcription failed (the error is shown above the list)  |
+| `✗`  | The last transcription job failed (the error is shown above the list) |
 
 Transcribed is decided by looking for output files in the **current** `output_dir`
 and `output_formats`; vmt keeps no other record
@@ -319,7 +319,7 @@ A Homebrew install ships the plist at `$(brew --prefix vmt)/share/vmt/alfred-wor
 ## Raycast
 
 [`raycast-extension/`](raycast-extension/) is a Raycast extension: a searchable
-list of recordings with a `✓`/`○` transcription mark, and an action panel on
+list of recordings with a `✓`/`○` status mark, and an action panel on
 **⌘K** for each one.
 
 ```
@@ -333,7 +333,7 @@ Search Voice Memos
                                                   ⌘K  Actions
 ```
 
-`↵` views a transcription or transcribes a pending recording; `⌘C` copies,
+`↵` views the transcript or transcribes a pending recording; `⌘C` copies,
 `⌘O` opens it, `⌘⇧F` reveals it in Finder, `⌘R` transcribes again. A dropdown
 filters to transcribed or pending.
 
@@ -350,7 +350,7 @@ npm run dev
 
 The extension shells out to `vmt list --json`, whose shape is a contract
 declared in [`internal/listing`](internal/listing/listing.go): each recording
-carries its transcription state, character count, and absolute paths to every
+carries its status (transcribed or pending), character count, and absolute paths to every
 written format.
 
 ## Data source

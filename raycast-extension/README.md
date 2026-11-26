@@ -22,17 +22,17 @@ other.
 
 | Action | Shortcut | Available on |
 |---|---|---|
-| View Transcription | `↵` | transcribed |
+| View Transcript | `↵` | transcribed |
 | Transcribe | `↵` | not transcribed |
-| Copy Transcription | `⌘C` | transcribed |
+| Copy Transcript | `⌘C` | transcribed |
 | Open in Default App | `⌘O` | transcribed |
 | Open With… | | transcribed |
-| Show Transcription in Finder | `⌘⇧F` | transcribed |
+| Show Transcript in Finder | `⌘⇧F` | transcribed |
 | Show Recording in Finder | | any |
 | Transcribe Again | `⌘R` | transcribed |
 | Copy Recording Name | `⌘⇧C` | any |
 
-Transcription runs in the background with a progress toast, and the list
+Transcription jobs run in the background with a progress toast, and the list
 refreshes itself when it finishes.
 
 ## Requirements

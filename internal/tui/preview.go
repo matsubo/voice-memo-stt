@@ -114,7 +114,7 @@ func (m *previewModel) loadContent() {
 	path := filepath.Join(config.ExpandPath(m.outputDir), m.stem+"."+m.formats[m.formatIdx])
 	data, err := os.ReadFile(path)
 	if err != nil {
-		m.content = fmt.Sprintf("(no transcription: %v)", err)
+		m.content = fmt.Sprintf("(no transcript: %v)", err)
 		return
 	}
 	m.content = string(data)

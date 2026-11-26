@@ -66,7 +66,7 @@ func Build(recs []voicememos.Recording, transcribed map[string]bool, query strin
 			Icon:     Icon{Path: iconPath},
 			Mods: ItemMods{
 				Cmd: ModEntry{
-					Subtitle: "Preview transcription",
+					Subtitle: "Preview transcript",
 					Arg:      r.Path,
 				},
 			},

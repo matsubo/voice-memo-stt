@@ -118,7 +118,7 @@ function RecordingItem({ recording, onChanged }: { recording: Recording; onChang
           <ActionPanel.Section>
             {output ? (
               <Action.Push
-                title="View Transcription"
+                title="View Transcript"
                 icon={Icon.Text}
                 target={<TranscriptionDetail recording={recording} />}
               />
@@ -127,7 +127,7 @@ function RecordingItem({ recording, onChanged }: { recording: Recording; onChang
             )}
             {output ? (
               <Action.CopyToClipboard
-                title="Copy Transcription"
+                title="Copy Transcript"
                 content={{ file: output.path }}
                 shortcut={{ modifiers: ["cmd"], key: "c" }}
               />
@@ -146,7 +146,7 @@ function RecordingItem({ recording, onChanged }: { recording: Recording; onChang
             {output ? <Action.OpenWith title="Open with…" path={output.path} /> : null}
             {output ? (
               <Action.ShowInFinder
-                title="Show Transcription in Finder"
+                title="Show Transcript in Finder"
                 path={output.path}
                 shortcut={{ modifiers: ["cmd", "shift"], key: "f" }}
               />

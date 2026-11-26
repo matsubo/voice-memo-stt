@@ -94,8 +94,8 @@ func TestSettings_CycleModel(t *testing.T) {
 	m := cursorOn(t, newSettingsModel(baseCfg()), "Model")
 
 	_, cmd := m.Update(tea.KeyMsg{Type: tea.KeyRight})
-	if got := changedCfg(t, cmd).Engines.ElevenLabs.Model; got != "scribe_v1" {
-		t.Errorf("model after →: got %q, want scribe_v1", got)
+	if got := changedCfg(t, cmd).Engines.ElevenLabs.Model; got != "scribe_v2_medical" {
+		t.Errorf("model after →: got %q, want scribe_v2_medical", got)
 	}
 }
 

@@ -11,6 +11,7 @@ import (
 
 	"github.com/matsubo/voice-memo-stt/internal/config"
 	"github.com/matsubo/voice-memo-stt/internal/engine"
+	"github.com/matsubo/voice-memo-stt/internal/engine/catalog"
 	"github.com/matsubo/voice-memo-stt/internal/formatter"
 	"github.com/matsubo/voice-memo-stt/internal/voicememos"
 	"github.com/matsubo/voice-memo-stt/internal/watcher"
@@ -48,7 +49,7 @@ var watchCmd = &cobra.Command{
 			return nil
 		}
 
-		eng, err := buildEngine(cfg)
+		eng, err := catalog.Build(cfg)
 		if err != nil {
 			return err
 		}
@@ -90,7 +91,7 @@ func runTranscription(ctx context.Context, eng engine.Engine, audioPath string, 
 	fmtCtx := formatter.Context{
 		File:     filepath.Base(audioPath),
 		Engine:   eng.Name(),
-		Model:    cfg.Engines.ElevenLabs.Model,
+		Model:    eng.Model().ID,
 		Segments: result.Segments,
 	}
 	return formatter.Write(outDir, fmtCtx, cfg.OutputFormats)

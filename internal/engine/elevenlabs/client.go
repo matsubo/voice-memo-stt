@@ -14,17 +14,27 @@ import (
 	"github.com/matsubo/voice-memo-stt/internal/engine"
 )
 
-const (
-	defaultAPIBase = "https://api.elevenlabs.io"
-	defaultModel   = "scribe_v2"
-	costV1PerHour  = 0.40
-	costV2PerHour  = 0.22
-)
+const defaultAPIBase = "https://api.elevenlabs.io"
+
+// Name is the Engine name used in the `engine` setting.
+const Name = "elevenlabs"
+
+// Models are the Models POST /v1/speech-to-text accepts, recommended first, which
+// makes the first one the default. Realtime Models (scribe_v3_live,
+// scribe_v2_realtime) are left out because vmt uploads whole files. Prices are
+// the self-serve batch list prices since 2026-11-17
+// (https://elevenlabs.io/docs/changelog/2026/11/17); scribe_v1 was removed on
+// 2026-07-09.
+var Models = []engine.Model{
+	{ID: "scribe_v3", PricePerHour: 0.20},
+	{ID: "scribe_v2", PricePerHour: 0.20},
+	{ID: "scribe_v2_medical", PricePerHour: 0.20},
+}
 
 // Client is an ElevenLabs Speech-to-Text client implementing engine.Engine.
 type Client struct {
 	apiKey  string
-	model   string
+	model   engine.Model
 	baseURL string
 	http    *http.Client
 }
@@ -37,11 +47,8 @@ func WithBaseURL(u string) Option {
 	return func(c *Client) { c.baseURL = u }
 }
 
-// New creates a new ElevenLabs client. If model is empty, defaultModel is used.
-func New(apiKey, model string, opts ...Option) *Client {
-	if model == "" {
-		model = defaultModel
-	}
+// New creates an ElevenLabs client that transcribes with model.
+func New(apiKey string, model engine.Model, opts ...Option) *Client {
 	c := &Client{
 		apiKey:  apiKey,
 		model:   model,
@@ -55,16 +62,10 @@ func New(apiKey, model string, opts ...Option) *Client {
 }
 
 // Name returns the engine identifier.
-func (c *Client) Name() string { return "elevenlabs" }
+func (c *Client) Name() string { return Name }
 
-// EstimateCost returns the estimated USD cost for the given audio duration.
-func (c *Client) EstimateCost(durationSeconds float64) float64 {
-	hours := durationSeconds / 3600
-	if c.model == "scribe_v1" {
-		return hours * costV1PerHour
-	}
-	return hours * costV2PerHour
-}
+// Model returns the Model this client transcribes with.
+func (c *Client) Model() engine.Model { return c.model }
 
 type apiWord struct {
 	SpeakerID string  `json:"speaker_id"`
@@ -86,7 +87,7 @@ func (c *Client) Transcribe(ctx context.Context, audioPath string, opts engine.T
 
 	var body bytes.Buffer
 	w := multipart.NewWriter(&body)
-	_ = w.WriteField("model_id", c.model)
+	_ = w.WriteField("model_id", c.model.ID)
 	if opts.LanguageCode != "" {
 		_ = w.WriteField("language_code", opts.LanguageCode)
 	}

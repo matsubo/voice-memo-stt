@@ -209,7 +209,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.selected = msg.recording
 		eng := elevenlabs.New(m.cfg.Engines.ElevenLabs.APIKey, m.cfg.Engines.ElevenLabs.Model)
 		cost := eng.EstimateCost(msg.recording.Duration)
-		m.confirm = newConfirmModel(msg.recording, cost)
+		overwrite := hasTranscriptionOutput(msg.recording.Path, m.cfg.OutputDir, m.cfg.OutputFormats)
+		m.confirm = newConfirmModel(msg.recording, cost, overwrite)
 		m.screen = screenConfirm
 		return m, nil
 

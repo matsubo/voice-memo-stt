@@ -63,8 +63,13 @@ export async function listRecordings(): Promise<Recording[]> {
 
 /**
  * Transcription is a network round trip over the whole audio file, so it gets a
- * long leash — an hour of audio takes minutes.
+ * long leash — an hour of audio takes minutes. `overwrite` is required to
+ * transcribe an already transcribed recording again; vmt refuses otherwise.
  */
-export async function transcribe(recordingPath: string): Promise<void> {
-  await vmt(["transcribe", recordingPath, "--yes"], 30 * 60_000);
+export async function transcribe(recordingPath: string, { overwrite = false } = {}): Promise<void> {
+  const args = ["transcribe", recordingPath, "--yes"];
+  if (overwrite) {
+    args.push("--overwrite");
+  }
+  await vmt(args, 30 * 60_000);
 }

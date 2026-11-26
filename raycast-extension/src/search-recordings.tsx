@@ -1,7 +1,9 @@
 import {
   Action,
   ActionPanel,
+  Alert,
   Color,
+  confirmAlert,
   Icon,
   List,
   showToast,
@@ -88,14 +90,14 @@ function statusIcon(recording: Recording) {
 function RecordingItem({ recording, onChanged }: { recording: Recording; onChanged: () => void }) {
   const output = preferredOutput(recording);
 
-  async function runTranscription() {
+  async function runTranscription(overwrite = false) {
     const toast = await showToast({
       style: Toast.Style.Animated,
       title: "Transcribing…",
       message: recording.title,
     });
     try {
-      await transcribe(recording.path);
+      await transcribe(recording.path, { overwrite });
       toast.style = Toast.Style.Success;
       toast.title = "Transcribed";
       onChanged();
@@ -103,6 +105,20 @@ function RecordingItem({ recording, onChanged }: { recording: Recording; onChang
       toast.style = Toast.Style.Failure;
       toast.title = error instanceof Error ? error.message : "Transcription failed";
       toast.message = error instanceof VmtError ? error.detail : undefined;
+    }
+  }
+
+  // Re-transcription replaces every output, edits included, and is billed
+  // again, so it always asks first.
+  async function transcribeAgain() {
+    const confirmed = await confirmAlert({
+      title: "Transcribe again?",
+      message:
+        "Every output of this recording, including your edits, will be replaced, and the full duration is billed again.",
+      primaryAction: { title: "Transcribe Again", style: Alert.ActionStyle.Destructive },
+    });
+    if (confirmed) {
+      await runTranscription(true);
     }
   }
 
@@ -123,7 +139,7 @@ function RecordingItem({ recording, onChanged }: { recording: Recording; onChang
                 target={<TranscriptionDetail recording={recording} />}
               />
             ) : (
-              <Action title="Transcribe" icon={Icon.Microphone} onAction={runTranscription} />
+              <Action title="Transcribe" icon={Icon.Microphone} onAction={() => runTranscription()} />
             )}
             {output ? (
               <Action.CopyToClipboard
@@ -155,14 +171,7 @@ function RecordingItem({ recording, onChanged }: { recording: Recording; onChang
           </ActionPanel.Section>
 
           <ActionPanel.Section>
-            {output ? (
-              <Action
-                title="Transcribe Again"
-                icon={Icon.ArrowClockwise}
-                onAction={runTranscription}
-                shortcut={Keyboard.Shortcut.Common.Refresh}
-              />
-            ) : null}
+            {output ? <Action title="Transcribe Again" icon={Icon.ArrowClockwise} onAction={transcribeAgain} /> : null}
             <Action.CopyToClipboard
               title="Copy Recording Name"
               content={recording.path}

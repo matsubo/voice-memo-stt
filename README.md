@@ -198,6 +198,7 @@ vmt list                       # list recordings
 vmt list --json                # machine-readable
 vmt transcribe <recording>     # transcribe one (with cost confirmation)
 vmt transcribe --all --yes     # batch, skip prompts
+vmt transcribe <recording> --yes --overwrite # transcribe a transcribed one again, no prompt
 vmt preview <recording>        # print the transcript (first enabled format with an output)
 vmt preview <recording> --format md # specific format
 vmt config                     # show config (API key masked)
@@ -290,7 +291,9 @@ All enabled formats are generated from one API call, written as `{stem}.{ext}` u
 
 Once written, each output is an independent file. Editing one (`e` in the
 preview) does not update the other formats, and transcribing the same recording
-again rewrites every format and discards those edits.
+again rewrites every format and discards those edits. vmt therefore never does
+that silently: the CLI and TUI prompts warn before it, and a run without a
+prompt (`--yes`) refuses a transcribed recording unless `--overwrite` is given.
 
 ## Watch mode
 
@@ -312,7 +315,9 @@ The `alfred-workflow/` directory has a skeleton `info.plist`. Suggested wiring i
 - Run Script on selection: `/usr/local/bin/vmt transcribe --yes {query}`
 - Cmd modifier: `/usr/local/bin/vmt preview {query}`
 
-Transcribed recordings show a `✓` icon; pending ones show a dash.
+Transcribed recordings show a `✓` icon; pending ones show a dash. Only pending
+recordings can be actioned with `↵`, so selecting a transcribed one never
+transcribes it again; `⌘↵` previews any recording.
 
 A Homebrew install ships the plist at `$(brew --prefix vmt)/share/vmt/alfred-workflow`.
 
@@ -334,7 +339,8 @@ Search Voice Memos
 ```
 
 `↵` views the transcript or transcribes a pending recording; `⌘C` copies,
-`⌘O` opens it, `⌘⇧F` reveals it in Finder, `⌘R` transcribes again. A dropdown
+`⌘O` opens it, and `⌘⇧F` reveals it in Finder. "Transcribe Again" (in `⌘K`)
+asks before it replaces the outputs. A dropdown
 filters to transcribed or pending.
 
 It is not on the Raycast Store — import it locally:

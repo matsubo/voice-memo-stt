@@ -29,7 +29,7 @@ other.
 | Open With… | | transcribed |
 | Show Transcript in Finder | `⌘⇧F` | transcribed |
 | Show Recording in Finder | | any |
-| Transcribe Again | `⌘R` | transcribed |
+| Transcribe Again (asks first; replaces the outputs, edits included) | | transcribed |
 | Copy Recording Name | `⌘⇧C` | any |
 
 Transcription jobs run in the background with a progress toast, and the list

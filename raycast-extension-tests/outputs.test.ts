@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
-import { asMarkdown, preferredOutput } from "../src/outputs";
-import type { Recording } from "../src/types";
+import { asMarkdown, preferredOutput } from "../raycast-extension/src/outputs";
+import type { Recording } from "../raycast-extension/src/types";
 
 function recording(outputs: Record<string, string>): Recording {
   return {

@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { describeFailure, stderrMessage, VmtError } from "../src/errors";
+import { describeFailure, stderrMessage, VmtError } from "../raycast-extension/src/errors";
 
 describe("stderrMessage", () => {
   test("picks the reported error out of surrounding output", () => {

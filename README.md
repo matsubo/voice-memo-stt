@@ -360,13 +360,18 @@ Search Voice Memos
 asks before it replaces the outputs. A dropdown
 filters to transcribed or pending.
 
-It is not on the Raycast Store — import it locally:
+It has been submitted to the Raycast Store
+([raycast/extensions#33991](https://github.com/raycast/extensions/pull/33991)).
+Until it is listed, import it locally:
 
 ```bash
 cd raycast-extension
 npm install
-npm run dev
+npm run dev        # imports into Raycast and watches for changes
 ```
+
+The extension stays in Raycast after you stop `npm run dev`. Run it again to
+pick up code changes.
 
 **Raycast needs Full Disk Access** (see below) or every command fails. See
 [raycast-extension/README.md](raycast-extension/README.md) for details.
@@ -375,6 +380,18 @@ The extension shells out to `vmt list --json`, whose shape is a contract
 declared in [`internal/listing`](internal/listing/listing.go): each recording
 carries its status (transcribed or pending), character count, and absolute paths to every
 written format.
+
+`raycast-extension/` is published as-is to raycast/extensions, where its README
+is the Store page, so it holds only what Store users run. Its tests live in
+`raycast-extension-tests/`:
+
+```bash
+bun test raycast-extension-tests   # pure logic: output selection, error mapping (repo root)
+cd raycast-extension
+npm run build      # ray build: type-checks and bundles
+npm run lint       # ray lint
+npm run publish    # pushes the current extension to its raycast/extensions PR
+```
 
 ## Data source
 
@@ -422,6 +439,7 @@ internal/
   cli/                      — cobra commands
   tui/                      — bubbletea screens
 raycast-extension/          — Raycast extension (TypeScript, consumes list --json)
+raycast-extension-tests/    — bun tests for the extension's pure logic
 ```
 
 Adding a new STT engine:

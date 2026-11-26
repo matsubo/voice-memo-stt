@@ -72,7 +72,7 @@ vmt config set editor nvim     # or: export VMT_EDITOR=nvim
 ```
 Transcribe: AI Moderator Meeting
 Duration: 1h06m
-Estimated cost: $0.2447
+Estimated cost: $0.2227
 
 [y] confirm  [n/esc] cancel
 ```
@@ -83,7 +83,7 @@ Estimated cost: $0.2447
 Settings
 
   Engine       elevenlabs
-> Model        < scribe_v2 >
+> Model        < scribe_v3 >
   Language     < auto >
   Diarize      < true >
   API Key      sk-a***wxyz
@@ -133,7 +133,7 @@ Team standup          2026-04-05 10:00  30m34s    20260405_100000.m4a
 ## Features
 
 - **Read macOS Voice Memos directly** from its SQLite database (read-only, no data mutation)
-- **Pluggable STT engines** — ElevenLabs Scribe v1/v2 at launch, easy to add more
+- **Pluggable STT engines** — ElevenLabs Scribe (v3, v2, v2 medical), each engine declaring its own models and prices
 - **Multi-format output** — txt, md, json, csv, xml generated from a single API call
 - **Multilingual** — ElevenLabs Scribe handles many languages; pick one in settings or leave it on auto-detect
 - **Speaker diarization** (via ElevenLabs `diarize`)
@@ -203,6 +203,7 @@ vmt preview <recording>        # print the transcript (first enabled format with
 vmt preview <recording> --format md # specific format
 vmt config                     # show config (API key masked)
 vmt config set <key> <value>   # update config
+vmt config models             # list the configured engine's models and prices
 vmt alfred [query]             # Alfred Script Filter JSON
 vmt tui                        # interactive TUI
 vmt watch                      # foreground watch + auto-transcribe
@@ -257,7 +258,7 @@ many would be lost.
   "engines": {
     "elevenlabs": {
       "api_key": "sk-...",
-      "model": "scribe_v2"
+      "model": "scribe_v3"
     }
   }
 }
@@ -266,18 +267,28 @@ many would be lost.
 | Key | Env var | Default |
 |---|---|---|
 | `engines.elevenlabs.api_key` | `ELEVENLABS_API_KEY` | (none, required) |
+| `engines.elevenlabs.model` | — | `scribe_v3` |
 | `engine` | `VMT_ENGINE` | `elevenlabs` |
 | `output_dir` | `VMT_OUTPUT_DIR` | `~/Downloads/voice-memo-transcription` |
 | `language_code` | `VMT_LANGUAGE` | (empty → auto-detect) |
 | `editor` | `VMT_EDITOR` | `$VISUAL`, then `$EDITOR`, then `vi` |
 | `beep_on_complete` | — | `false` |
 
-ElevenLabs models:
+ElevenLabs models (pick one in settings with `←/→`, or
+`vmt config set engines.elevenlabs.model <id>`; `vmt config models` lists them):
 
-| Model | Price |
-|---|---|
-| `scribe_v1` | $0.40 / hour |
-| `scribe_v2` (default) | $0.22 / hour |
+| Model | Use | Price |
+|---|---|---|
+| `scribe_v3` (default) | most accurate for recorded audio | $0.20 / hour |
+| `scribe_v2` | previous generation | $0.20 / hour |
+| `scribe_v2_medical` | clinical audio | $0.20 / hour |
+
+Prices are ElevenLabs' self-serve batch list prices as of 2026-11-17
+([changelog](https://elevenlabs.io/docs/changelog/2026/11/17)); the cost shown
+before a transcription is an estimate, not the bill. `scribe_v1` was removed by
+ElevenLabs on 2026-07-09, so a config that still names it is rejected with the
+list of available models. Realtime models are not offered because vmt uploads
+whole recordings.
 
 ## Output formats
 
@@ -397,11 +408,12 @@ Error: macOS denied access to the Voice Memos database — grant Full Disk Acces
 ## Architecture
 
 ```
-cmd/vmt/main.go             — entrypoint, engine registration
+cmd/vmt/main.go             — entrypoint
 internal/
   voicememos/               — SQLite reader
-  engine/                   — Engine interface + registry
-    elevenlabs/             — ElevenLabs Scribe client
+  engine/                   — Engine interface, Model (id + hourly price)
+    catalog/                — which Engines exist, their Models, building the configured one
+    elevenlabs/             — ElevenLabs Scribe client and its Models
   formatter/                — txt/md/json/csv/xml output + output paths
   listing/                  — `vmt list --json` contract
   config/                   — JSON config + env var overrides
@@ -414,8 +426,8 @@ raycast-extension/          — Raycast extension (TypeScript, consumes list --j
 
 Adding a new STT engine:
 
-1. Create `internal/engine/<name>/client.go` implementing the `Engine` interface.
-2. `engine.Register(newengine.New(...))` in `cmd/vmt/main.go`.
+1. Create `internal/engine/<name>/client.go` implementing the `Engine` interface, with its `Models` list (default first).
+2. Add an entry to `definitions` in `internal/engine/catalog/catalog.go`.
 3. Add `engines.<name>.*` to config.
 
 ## Development

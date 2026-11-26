@@ -227,6 +227,12 @@ The leftmost column of the list is a status column:
 | `✓`  | Transcribed — at least one output file exists                     |
 | `✗`  | The last transcription failed (the error is shown above the list)  |
 
+Transcribed is decided by looking for output files in the **current** `output_dir`
+and `output_formats`; vmt keeps no other record
+([ADR 0001](docs/adr/0001-transcribed-is-derived-from-outputs.md)). Changing
+either setting makes earlier recordings show as not transcribed, and
+`vmt transcribe --all` would then transcribe and bill them again.
+
 The footer lists only the keys that apply to the highlighted row: `p preview`
 appears for a transcribed recording and is hidden (and does nothing) on one that
 has not been transcribed yet.
@@ -282,9 +288,18 @@ All enabled formats are generated from one API call, written as `{stem}.{ext}` u
 - **csv** — `time,speaker,text`
 - **xml** — `<transcription ...><segment .../></transcription>`
 
+Once written, each output is an independent file. Editing one (`e` in the
+preview) does not update the other formats, and transcribing the same recording
+again rewrites every format and discards those edits.
+
 ## Watch mode
 
 `vmt watch` monitors the Voice Memos directory with `fsnotify`. When a new `.m4a` appears, it waits 2 s (debounce — Voice Memos writes incrementally), transcribes, writes output, and fires a macOS notification.
+
+Watch only sees recordings that appear while it is running. Recordings made
+while the Mac was off, or before the launchd agent was installed, stay pending;
+pick them up with `vmt transcribe --all`, which shows the count and total
+duration before it bills.
 
 `vmt watch --install` generates `~/Library/LaunchAgents/com.matsubo.vmt.watch.plist` and loads it with `launchctl`. Logs go to `~/Library/Logs/vmt/watch.log`.
 
@@ -398,6 +413,9 @@ make build           # build to bin/vmt
 make test            # go test ./...
 make lint            # golangci-lint run ./...
 ```
+
+Domain terms used in code and docs are defined in [GLOSSARY.md](GLOSSARY.md);
+architectural decisions are recorded in [docs/adr/](docs/adr/).
 
 Minimum test coverage per package: 80 %. Golden-file tests for formatters, in-memory SQLite for voicememos, httptest for the ElevenLabs client.
 

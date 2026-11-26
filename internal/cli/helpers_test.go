@@ -143,3 +143,43 @@ func TestBuildEngine_WithKey(t *testing.T) {
 		t.Errorf("engine Name: got %q", eng.Name())
 	}
 }
+
+func TestWatchHandler_SkipsTranscribed(t *testing.T) {
+	dir := t.TempDir()
+	edited := filepath.Join(dir, "rec.txt")
+	if err := os.WriteFile(edited, []byte("edited by hand"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg := config.Config{OutputDir: dir, OutputFormats: []string{"txt"}}
+	eng := &countingEngine{}
+	notified := 0
+
+	handle := watchHandler(eng, cfg, func(string) { notified++ })
+	if err := handle(context.Background(), "/voice-memos/rec.m4a"); err != nil {
+		t.Fatal(err)
+	}
+	if eng.calls != 0 || notified != 0 {
+		t.Errorf("a transcribed recording must be skipped, got %d Engine calls, %d notifications", eng.calls, notified)
+	}
+	if data, _ := os.ReadFile(edited); string(data) != "edited by hand" {
+		t.Errorf("the edited output must survive, got %q", data)
+	}
+}
+
+func TestWatchHandler_TranscribesPending(t *testing.T) {
+	dir := t.TempDir()
+	cfg := config.Config{OutputDir: dir, OutputFormats: []string{"txt"}}
+	eng := &countingEngine{}
+	notified := 0
+
+	handle := watchHandler(eng, cfg, func(string) { notified++ })
+	if err := handle(context.Background(), "/voice-memos/new.m4a"); err != nil {
+		t.Fatal(err)
+	}
+	if eng.calls != 1 || notified != 1 {
+		t.Errorf("a pending recording must be transcribed once and notified, got %d calls, %d notifications", eng.calls, notified)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "new.txt")); err != nil {
+		t.Errorf("the output must be written: %v", err)
+	}
+}

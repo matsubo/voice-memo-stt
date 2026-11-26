@@ -299,6 +299,12 @@ prompt (`--yes`) refuses a transcribed recording unless `--overwrite` is given.
 
 `vmt watch` monitors the Voice Memos directory with `fsnotify`. When a new `.m4a` appears, it waits 2 s (debounce — Voice Memos writes incrementally), transcribes, writes output, and fires a macOS notification.
 
+Watch only transcribes **pending** recordings. A write to a recording that is
+already transcribed — trimming it in Voice Memos, or iCloud re-syncing it — is
+logged and skipped, so watch never bills again or overwrites edited outputs. To
+transcribe such a recording again, use `vmt transcribe <recording>` (which asks)
+or `--yes --overwrite`.
+
 Watch only sees recordings that appear while it is running. Recordings made
 while the Mac was off, or before the launchd agent was installed, stay pending;
 pick them up with `vmt transcribe --all`, which shows the count and total

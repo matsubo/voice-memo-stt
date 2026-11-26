@@ -14,6 +14,7 @@ type Item struct {
 	Title    string   `json:"title"`
 	Subtitle string   `json:"subtitle"`
 	Arg      string   `json:"arg"`
+	Valid    bool     `json:"valid"` // false: ↵ does nothing (the workflow's ↵ transcribes)
 	Icon     Icon     `json:"icon"`
 	Mods     ItemMods `json:"mods"`
 }
@@ -32,6 +33,7 @@ type ItemMods struct {
 type ModEntry struct {
 	Subtitle string `json:"subtitle"`
 	Arg      string `json:"arg"`
+	Valid    bool   `json:"valid"`
 }
 
 // Output is the top-level Alfred Script Filter JSON envelope.
@@ -57,17 +59,25 @@ func Build(recs []voicememos.Recording, transcribed map[string]bool, query strin
 		}
 
 		subtitle := fmt.Sprintf("%s (%s)", r.Date.Format("2006-01-02 15:04"), r.DurationFormatted())
+		if transcribed[r.Path] {
+			subtitle += " · transcribed, ⌘↵ to preview"
+		}
 
+		// ↵ runs `vmt transcribe --yes`. On a transcribed recording that would be
+		// a Re-transcription, which must never happen without asking, so only
+		// pending recordings are actionable; ⌘ preview works on every item.
 		items = append(items, Item{
 			UID:      r.Path,
 			Title:    r.Title,
 			Subtitle: subtitle,
 			Arg:      r.Path,
+			Valid:    !transcribed[r.Path],
 			Icon:     Icon{Path: iconPath},
 			Mods: ItemMods{
 				Cmd: ModEntry{
 					Subtitle: "Preview transcript",
 					Arg:      r.Path,
+					Valid:    true,
 				},
 			},
 		})

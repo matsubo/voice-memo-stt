@@ -17,8 +17,9 @@ import (
 )
 
 var (
-	transcribeAll bool
-	transcribeYes bool
+	transcribeAll       bool
+	transcribeYes       bool
+	transcribeOverwrite bool
 )
 
 var transcribeCmd = &cobra.Command{
@@ -69,12 +70,23 @@ func transcribeOne(ctx context.Context, recs []voicememos.Recording, eng engine.
 		return fmt.Errorf("recording %q not found", path)
 	}
 
+	// Re-transcription replaces every Output, edits included, and bills again,
+	// so a run that skips the prompt must say so explicitly.
+	outDir := config.ExpandPath(cfg.OutputDir)
+	retranscription := formatter.Transcribed(outDir, rec.Path, cfg.OutputFormats)
+	if retranscription && transcribeYes && !transcribeOverwrite {
+		return fmt.Errorf("%q is already transcribed; pass --overwrite to transcribe it again and replace its outputs, including any edits", rec.Path)
+	}
+
 	audioPath := filepath.Join(voicememos.AudioDir(), rec.Path)
 	cost := eng.EstimateCost(rec.Duration)
 
 	fmt.Printf("Recording: %s\n", rec.Title)
 	fmt.Printf("Duration:  %s\n", rec.DurationFormatted())
 	fmt.Printf("Est. cost: $%.4f\n", cost)
+	if retranscription {
+		fmt.Printf("Already transcribed: its outputs in %s, including any edits, will be overwritten.\n", outDir)
+	}
 
 	if !transcribeYes {
 		fmt.Print("Proceed? [y/N] ")
@@ -96,7 +108,6 @@ func transcribeOne(ctx context.Context, recs []voicememos.Recording, eng engine.
 		return fmt.Errorf("transcribe: %w", err)
 	}
 
-	outDir := config.ExpandPath(cfg.OutputDir)
 	fmtCtx := formatter.Context{
 		File:       rec.Path,
 		RecordedAt: rec.Date,
@@ -113,16 +124,6 @@ func transcribeOne(ctx context.Context, recs []voicememos.Recording, eng engine.
 	return nil
 }
 
-func hasTranscription(outDir, recPath string, formats []string) bool {
-	if len(formats) == 0 {
-		return false
-	}
-	stem := strings.TrimSuffix(recPath, filepath.Ext(recPath))
-	check := filepath.Join(outDir, stem+"."+formats[0])
-	_, err := os.Stat(check)
-	return err == nil
-}
-
 func transcribeAllPending(ctx context.Context, recs []voicememos.Recording, eng engine.Engine, cfg config.Config) error {
 	outDir := config.ExpandPath(cfg.OutputDir)
 
@@ -130,7 +131,7 @@ func transcribeAllPending(ctx context.Context, recs []voicememos.Recording, eng 
 	var totalCost float64
 	var totalDur float64
 	for _, r := range recs {
-		if hasTranscription(outDir, r.Path, cfg.OutputFormats) {
+		if formatter.Transcribed(outDir, r.Path, cfg.OutputFormats) {
 			continue
 		}
 		pending = append(pending, r)
@@ -189,4 +190,5 @@ func transcribeAllPending(ctx context.Context, recs []voicememos.Recording, eng 
 func init() {
 	transcribeCmd.Flags().BoolVar(&transcribeAll, "all", false, "transcribe all pending recordings")
 	transcribeCmd.Flags().BoolVar(&transcribeYes, "yes", false, "skip confirmation prompt")
+	transcribeCmd.Flags().BoolVar(&transcribeOverwrite, "overwrite", false, "allow transcribing an already transcribed recording again, replacing its outputs (including edits)")
 }

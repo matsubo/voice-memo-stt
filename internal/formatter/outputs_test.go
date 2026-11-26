@@ -51,3 +51,16 @@ func TestExistingOutputs_NoneIsEmptyNotNilPanic(t *testing.T) {
 		t.Errorf("nothing on disk should yield no outputs, got %v", got)
 	}
 }
+
+func TestTranscribed_AnyEnabledFormatCounts(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "rec.json"), []byte("{}"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if !formatter.Transcribed(dir, "rec.m4a", []string{"txt", "json"}) {
+		t.Error("an output in the second enabled format must count as transcribed")
+	}
+	if formatter.Transcribed(dir, "rec.m4a", []string{"txt"}) {
+		t.Error("an output in a format that is not enabled must not count")
+	}
+}

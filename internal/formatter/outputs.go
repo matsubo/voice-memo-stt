@@ -43,3 +43,10 @@ func ExistingOutputs(dir, recPath string, formats []string) map[string]string {
 	}
 	return out
 }
+
+// Transcribed reports whether recPath has at least one Output in dir, in one of
+// formats. vmt keeps no other record of what it has transcribed (ADR 0001), so
+// every caller asks this question the same way.
+func Transcribed(dir, recPath string, formats []string) bool {
+	return len(ExistingOutputs(dir, recPath, formats)) > 0
+}

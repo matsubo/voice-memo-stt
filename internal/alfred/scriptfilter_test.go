@@ -78,3 +78,30 @@ func TestBuild_IconSwitch(t *testing.T) {
 		t.Errorf("transcribed and pending should have different icons, both = %v", iconA)
 	}
 }
+
+// ↵ in the workflow runs `vmt transcribe --yes`, so a transcribed item must not
+// be actionable, while ⌘ (preview) stays available on every item.
+func TestBuild_OnlyPendingIsActionable(t *testing.T) {
+	recs := []voicememos.Recording{
+		{Title: "done", Path: "a.m4a", Date: time.Now()},
+		{Title: "pending", Path: "b.m4a", Date: time.Now()},
+	}
+	output, err := alfred.Build(recs, map[string]bool{"a.m4a": true}, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result alfred.Output
+	if err := json.Unmarshal(output, &result); err != nil {
+		t.Fatal(err)
+	}
+	done, pending := result.Items[0], result.Items[1]
+	if done.Valid {
+		t.Error("a transcribed item must not be actionable with ↵")
+	}
+	if !pending.Valid {
+		t.Error("a pending item must be actionable with ↵")
+	}
+	if !done.Mods.Cmd.Valid || !pending.Mods.Cmd.Valid {
+		t.Error("⌘ preview must be actionable on every item")
+	}
+}
